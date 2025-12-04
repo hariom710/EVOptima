@@ -1,0 +1,90 @@
+{% extends 'prediction/base.html' %}
+{% load crispy_forms_tags %}
+{% load prediction_extras %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">Main DC Power Distribution</h2>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-3" style="height: 25px;">
+                        {% for prediction in predictions %}
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: {{ prediction.power_allocation|div:total_power|mul:100 }}%"
+                             title="EV {{ forloop.counter }}: {{ prediction.power_allocation|floatformat:1 }} kW">
+                            EV {{ forloop.counter }}
+                        </div>
+                        {% endfor %}
+                        {% if remaining_power > 0 %}
+                        <div class="progress-bar bg-secondary" role="progressbar"
+                             style="width: {{ remaining_power|div:total_power|mul:100 }}%"
+                             title="Available: {{ remaining_power|floatformat:1 }} kW">
+                            Available
+                        </div>
+                        {% endif %}
+                    </div>
+                    <p class="text-center">Total Power: {{ total_power }} kW | Available: {{ remaining_power|floatformat:1 }} kW</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="row">
+            {% for form in forms %}
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">EV Charging Station {{ forloop.counter }}</h3>
+                    </div>
+                    <div class="card-body">
+                        {{ form|crispy }}
+                        {% with forloop.counter0 as idx %}
+                        {% if predictions_dict|get:idx %}
+                        {% with predictions_dict|get:idx as prediction %}
+                        <div class="mt-3">
+                            {% if prediction.fault_detected %}
+                            <div class="alert alert-danger">
+                                <i class="bi bi-exclamation-triangle"></i> <strong>Fault Detected!</strong><br>
+                                {{ prediction.fault_message }}
+                            </div>
+                            {% else %}
+                            <div class="alert alert-success">
+                                <i class="bi bi-check-circle"></i> <strong>System Safe</strong>
+                            </div>
+                            {% endif %}
+                            <h4>Prediction Results:</h4>
+                            <ul class="list-unstyled">
+                                <li>Predicted Power (avg): <strong>{{ prediction.power_allocation|floatformat:1 }} kW</strong></li>
+                                <li>Battery Temperature: <strong>{{ prediction.battery_temp|floatformat:1 }}°C</strong></li>
+                                <li>State of Charge: <strong>{{ prediction.soc|floatformat:1 }}%</strong></li>
+                                <li>Duration: <strong>{{ prediction.duration|floatformat:1 }} hours</strong></li>
+                                <li>Energy Consumption: <strong>{{ prediction.predicted_value|floatformat:2 }} kWh</strong></li>
+                                <li>Predicted Current: <strong>{{ prediction.predicted_current|floatformat:2 }}A</strong></li>
+                                <li>Assumed Voltage: <strong>{{ prediction.predicted_voltage|floatformat:2 }}V</strong></li>
+                            </ul>
+                            {% if prediction.fault_detected %}
+                            <div class="badge bg-danger">Port simulation stopped due to fault</div>
+                            {% endif %}
+                        </div>
+                        {% endwith %}
+                        {% endif %}
+                        {% endwith %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="row mt-4">
+            <div class="col-12 text-center">
+                <button type="submit" class="btn btn-primary btn-lg">Calculate Predictions</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

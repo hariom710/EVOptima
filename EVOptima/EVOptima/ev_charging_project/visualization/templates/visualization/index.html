@@ -1,0 +1,203 @@
+{% extends 'prediction/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">EV Charging Data Visualization</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger" role="alert">
+        <h4 class="alert-heading">Error!</h4>
+        <p>{{ error }}</p>
+    </div>
+    {% else %}
+    <div class="charts-wrapper">
+        <div class="chart-container">
+            <canvas id="currentChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="voltageChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="powerChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="temperatureChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .chart-container {
+        width: 45%;
+        height: 400px;
+        margin: 10px;
+        display: inline-block;
+    }
+    .charts-wrapper {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 20px;
+    }
+</style>
+
+{% if not error %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let chartData;
+    try {
+        chartData = JSON.parse('{{ chart_data|safe }}');
+    } catch (e) {
+        console.error('Error parsing chart data:', e);
+        document.querySelector('.charts-wrapper').innerHTML = '<div class="alert alert-danger">Error loading chart data</div>';
+    }
+
+    if (chartData) {
+        const window_size = 10;
+        let currentIndex = 0;
+        let updateTimeout = null;
+
+        function createChart(ctx, label, data, color, yAxisLabel) {
+            if (!ctx) {
+                console.error('Canvas element not found');
+                return null;
+            }
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: label,
+                        data: [],
+                        borderColor: color,
+                        tension: 0.1,
+                        borderWidth: 2,
+                        pointRadius: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 0 },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: yAxisLabel }
+                        },
+                        x: {
+                            title: { display: true, text: 'Time Elapsed (s)' },
+                            ticks: {
+                                maxTicksLimit: 8,
+                                autoSkip: true
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+
+        const currentCtx = document.getElementById('currentChart');
+        const voltageCtx = document.getElementById('voltageChart');
+        const powerCtx = document.getElementById('powerChart');
+        const temperatureCtx = document.getElementById('temperatureChart');
+
+        if (!currentCtx || !voltageCtx || !powerCtx || !temperatureCtx) {
+            console.error('Canvas elements not found');
+        } else {
+            const currentChart = createChart(
+                currentCtx,
+                'Charging Current',
+                chartData.current,
+                '#1b5e20',
+                'Current (A)'
+            );
+
+            const voltageChart = createChart(
+                voltageCtx,
+                'Charging Voltage',
+                chartData.voltage,
+                '#f57c00',
+                'Voltage (V)'
+            );
+
+            const powerChart = createChart(
+                powerCtx,
+                'Charging Power',
+                chartData.power,
+                '#0277bd',
+                'Power (W)'
+            );
+
+            const temperatureChart = createChart(
+                temperatureCtx,
+                'Battery Temperature',
+                chartData.temperature,
+                '#c62828',
+                'Temperature (°C)'
+            );
+
+            if (currentChart && voltageChart && powerChart && temperatureChart) {
+                function updateCharts() {
+                    if (currentIndex >= chartData.time.length) {
+                        currentIndex = 0;
+                    }
+
+                    const start = Math.max(0, currentIndex - window_size);
+                    const end = currentIndex + 1;
+                    const timeSlice = chartData.time.slice(start, end);
+                    const timeNormalized = timeSlice.map(t => Number(t).toFixed(1));
+
+                    // Update current chart
+                    currentChart.data.labels = timeNormalized;
+                    currentChart.data.datasets[0].data = chartData.current.slice(start, end);
+                    currentChart.update('none');
+
+                    // Update voltage chart
+                    voltageChart.data.labels = timeNormalized;
+                    voltageChart.data.datasets[0].data = chartData.voltage.slice(start, end);
+                    voltageChart.update('none');
+
+                    // Update power chart
+                    powerChart.data.labels = timeNormalized;
+                    powerChart.data.datasets[0].data = chartData.power.slice(start, end);
+                    powerChart.update('none');
+
+                    // Update temperature chart
+                    temperatureChart.data.labels = timeNormalized;
+                    temperatureChart.data.datasets[0].data = chartData.temperature.slice(start, end);
+                    temperatureChart.update('none');
+
+                    currentIndex++;
+                    // Clear previous timeout and set new one to prevent accumulation
+                    if (updateTimeout) {
+                        clearTimeout(updateTimeout);
+                    }
+                    updateTimeout = setTimeout(updateCharts, 1200);
+                }
+
+                // Initialize charts with first data points
+                document.addEventListener('DOMContentLoaded', function() {
+                    currentIndex = window_size;
+                    updateCharts();
+                });
+            }
+        }
+    }
+</script>
+{% endif %}
+{% endblock %}

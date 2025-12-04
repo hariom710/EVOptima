@@ -1,0 +1,89 @@
+Project Title
+Advanced Monitoring and Control Mechanism for Electric Vehicle Charging Station using Machine Learning
+
+Problem Statement
+As electric vehicle (EV) adoption increases, the load on charging infrastructure also grows. Efficient power distribution and intelligent load management are critical to prevent transformer overloads, overheating, and charger faults. This project addresses these challenges by designing a smart EV charging system that monitors and optimizes power distribution across multiple charging points using machine learning.
+
+Objective
+To develop an intelligent monitoring and control mechanism for an EV charging station that:
+
+Distributes current optimally from a central transformer/grid to multiple charging points.
+
+Predicts and adjusts current flow dynamically to prevent transformer overload.
+
+Monitors parameters such as current, voltage, power, and temperature at each charger.
+
+Detects faults and abnormal behaviors in real-time.
+
+Decides whether to connect or disconnect a 4th charging point based on current load and system health.
+
+System Overview
+The charging station has 3 primary charging points, each equipped with one gun to connect to EVs.
+
+When a 4th charger is requested, the system evaluates transformer capacity and decides whether to allow the connection.
+
+A Machine Learning model is trained to:
+
+Output optimal current, voltage, power, and temperature per charger.
+
+Optimize current distribution to reduce overheating risks.
+
+Detect anomalies indicating faults at any charging point.
+
+Trigger disconnects or warnings based on predicted risks (e.g., transformer nearing overload).
+
+Key Functionalities
+Real-time Monitoring
+
+Display of live current, voltage, power, and temperature for each charging point.
+
+Current Optimization
+
+Dynamically adjust the current for each point, prioritizing safe temperatures and balanced power draw.
+
+Fault Detection
+
+Identify faulty chargers based on irregular patterns and immediately set output current to 0.
+
+Dynamic Load Management
+
+When the 4th point is introduced:
+
+Predict if grid can handle it without overload.
+
+If not feasible, block the 4th connection and show an alert.
+
+Machine Learning Component
+Inputs: Previous/current values of current, voltage, power, temperature, connection request status, time.
+
+Outputs:
+
+Current, Voltage, Power, Temperature per charging point.
+
+Fault status (OK, FAULTY)
+
+4th Charger Decision (ALLOW / DISCONNECT)
+
+Training Algorithm: Could include regression models for prediction + classification for fault detection.
+
+Optimization Logic: Reinforcement learning or rule-based logic to manage temperature-based current control.
+
+Technologies Used
+Hardware: Microcontrollers (e.g., Raspberry Pi/ESP32), Sensors (current, voltage, temp), Relays, Circuit Breakers.
+
+Software: Python, Scikit-learn/TensorFlow, Django (Dashboard), , SQLite/MySQL.
+
+Tools: Jupyter Notebook, Google Cloud (if cloud-based model used), matplotlib/seaborn (for plots).
+
+Expected Outcomes
+A smart EV charging station prototype with:
+
+Efficient and safe power distribution.
+
+Real-time parameter monitoring.
+
+Autonomous decision-making on charger connection and disconnection.
+
+Prevention of transformer crashes and charger faults.
+
+Scalable and adaptable design for real-world EV stations.

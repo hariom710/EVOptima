@@ -1,0 +1,468 @@
+{% extends 'prediction/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">EV Charging Fault Simulation & Visualization</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <div class="alert alert-info d-flex justify-content-between align-items-center" id="faultBanner" style="display:none;">
+                <div>
+                    <strong>Active Fault:</strong> <span id="faultType">-</span>
+                </div>
+                <span class="badge bg-danger" id="faultState">FAULT</span>
+            </div>
+        </div>
+        <div class="col-md-6 text-md-end">
+            <div id="simNotice" class="text-muted"></div>
+        </div>
+    </div>
+
+    <div class="charts-wrapper">
+        <div class="chart-container">
+            <canvas id="currentChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="voltageChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="powerChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="temperatureChart"></canvas>
+        </div>
+        <div class="chart-container" style="width: 92%;">
+            <canvas id="faultTimelineChart"></canvas>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> Safety Thresholds</h5>
+                </div>
+                <div class="card-body">
+                    {% if thresholds %}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Current Range</small>
+                                <h6 class="mb-0">{{ thresholds.min_current }}A - {{ thresholds.max_current }}A</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Voltage Range</small>
+                                <h6 class="mb-0">{{ thresholds.min_voltage }}V - {{ thresholds.max_voltage }}V</h6>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Temperature Range</small>
+                                <h6 class="mb-0">{{ thresholds.min_temperature }}°C - {{ thresholds.max_temperature }}°C</h6>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No threshold data available.</p>
+    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-play-circle"></i> Simulation Controls</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <h6>Normal Charging</h6>
+                            <form id="startNormalForm" class="mb-2">
+                                {% csrf_token %}
+                                <div class="mb-2">
+                                    <input type="number" name="duration" class="form-control form-control-sm" placeholder="Duration (seconds)" step="1" min="1">
+                                </div>
+                                <button type="submit" class="btn btn-success btn-sm w-100">
+                                    <i class="bi bi-play-fill"></i> Start Normal
+                                </button>
+                            </form>
+                            <form id="stopNormalForm">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-sm w-100">
+                                    <i class="bi bi-stop-fill"></i> Stop
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Fault Detection</h6>
+                            <form id="startFaultForm" class="mb-2">
+                                {% csrf_token %}
+                                <div class="mb-2">
+                                    <input type="number" name="cycles" class="form-control form-control-sm" placeholder="Cycles (1 cycle = 50s)" step="1" min="1" value="1">
+                                </div>
+                                <button type="submit" class="btn btn-warning btn-sm w-100">
+                                    <i class="bi bi-play-fill"></i> Start Fault
+                                </button>
+                            </form>
+                            <form id="stopFaultForm">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-sm w-100">
+                                    <i class="bi bi-stop-fill"></i> Stop
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    <small class="text-muted d-block mt-2"><i class="bi bi-info-circle"></i> Simulations run in background and log readings automatically</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .chart-container {
+        width: 45%;
+        height: 400px;
+        margin: 10px;
+        display: inline-block;
+        background-color: #ffffff;
+    }
+    .charts-wrapper {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 20px;
+    }
+    /* Ensure canvases have a white background for better readability */
+    .chart-container canvas {
+        background-color: #ffffff;
+    }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Parse optional CSV-provided data (chartData); fallback to live mode if absent
+    let chartData;
+    try {
+        chartData = JSON.parse('{{ chart_data|safe }}');
+    } catch (e) {
+        // chartData remains undefined; we'll use live mode
+    }
+
+    // Shared helper to create a 2-dataset line chart (series + anomalies)
+    function createChart(ctx, label, data, color, yAxisLabel) {
+        if (!ctx) {
+            console.error('Canvas element not found');
+            return null;
+        }
+        return new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: label,
+                    data: [],
+                    borderColor: color,
+                    tension: 0.1,
+                    borderWidth: 2,
+                    pointRadius: 1
+                },
+                {
+                    label: label + ' Anomalies',
+                    data: [],
+                    borderColor: 'rgba(220,53,69,0.6)',
+                    backgroundColor: 'rgba(220,53,69,0.6)',
+                    pointRadius: 4,
+                    showLine: false,
+                    hidden: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: yAxisLabel }
+                    },
+                    x: {
+                        title: { display: true, text: 'Time Elapsed (s)' },
+                        ticks: { maxTicksLimit: 8, autoSkip: true }
+                    }
+                },
+                plugins: { legend: { position: 'top' } }
+            }
+        });
+    }
+
+    // Canvas references shared by both modes
+    const currentCtx = document.getElementById('currentChart');
+    const voltageCtx = document.getElementById('voltageChart');
+    const powerCtx = document.getElementById('powerChart');
+    const temperatureCtx = document.getElementById('temperatureChart');
+    const faultCtx = document.getElementById('faultTimelineChart');
+
+    if (chartData) {
+        const window_size = 10;
+        let currentIndex = 0;
+        let updateTimeout = null;
+
+        if (!currentCtx || !voltageCtx || !powerCtx || !temperatureCtx) {
+            console.error('Canvas elements not found');
+        } else {
+            const currentChart = createChart(currentCtx, 'Charging Current', chartData.current, '#1b5e20', 'Current (A)');
+            const voltageChart = createChart(voltageCtx, 'Charging Voltage', chartData.voltage, '#f57c00', 'Voltage (V)');
+            const powerChart = createChart(powerCtx, 'Charging Power', chartData.power, '#0277bd', 'Power (W)');
+            const temperatureChart = createChart(temperatureCtx, 'Battery Temperature', chartData.temperature, '#c62828', 'Temperature (°C)');
+
+            if (currentChart && voltageChart && powerChart && temperatureChart) {
+                function updateCharts() {
+                    if (currentIndex >= chartData.time.length) {
+                        currentIndex = 0;
+                    }
+
+                    const start = Math.max(0, currentIndex - window_size);
+                    const end = currentIndex + 1;
+                    const timeSlice = chartData.time.slice(start, end);
+                    const timeNormalized = timeSlice.map(t => Number(t).toFixed(1));
+
+                    currentChart.data.labels = timeNormalized;
+                    currentChart.data.datasets[0].data = chartData.current.slice(start, end);
+                    if (window.latestThresholds) {
+                        const curData = chartData.current.slice(start, end);
+                        currentChart.data.datasets[1].data = curData.map(v => (v < window.latestThresholds.min_current || v > window.latestThresholds.max_current) ? v : null);
+                    }
+                    currentChart.update('none');
+
+                    voltageChart.data.labels = timeNormalized;
+                    voltageChart.data.datasets[0].data = chartData.voltage.slice(start, end);
+                    if (window.latestThresholds) {
+                        const volData = chartData.voltage.slice(start, end);
+                        voltageChart.data.datasets[1].data = volData.map(v => (v < window.latestThresholds.min_voltage || v > window.latestThresholds.max_voltage) ? v : null);
+                    }
+                    voltageChart.update('none');
+
+                    powerChart.data.labels = timeNormalized;
+                    powerChart.data.datasets[0].data = chartData.power.slice(start, end);
+                    powerChart.update('none');
+
+                    temperatureChart.data.labels = timeNormalized;
+                    temperatureChart.data.datasets[0].data = chartData.temperature.slice(start, end);
+                    if (window.latestThresholds) {
+                        const tempData = chartData.temperature.slice(start, end);
+                        temperatureChart.data.datasets[1].data = tempData.map(v => (v < window.latestThresholds.min_temperature || v > window.latestThresholds.max_temperature) ? v : null);
+                    }
+                    temperatureChart.update('none');
+
+                    currentIndex++;
+                    if (updateTimeout) clearTimeout(updateTimeout);
+                    updateTimeout = setTimeout(updateCharts, 1200);
+                }
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', function() {
+                        currentIndex = window_size;
+                        updateCharts();
+                    });
+                } else {
+                    currentIndex = window_size;
+                    updateCharts();
+                }
+            }
+        }
+    } else {
+        // Live mode: use monitoring status to stream points
+        const currentChart = createChart(currentCtx, 'Current (A)', [], '#1b5e20', 'Current (A)');
+        const voltageChart = createChart(voltageCtx, 'Voltage (V)', [], '#f57c00', 'Voltage (V)');
+        const powerChart = createChart(powerCtx, 'Power (W)', [], '#0277bd', 'Power (W)');
+        const temperatureChart = createChart(temperatureCtx, 'Temperature (°C)', [], '#c62828', 'Temperature (°C)');
+        const faultTimelineChart = faultCtx ? new Chart(faultCtx, {
+            type: 'line',
+            data: { labels: [], datasets: [{
+                label: 'Fault Timeline (1=fault, 0=safe)',
+                data: [],
+                borderColor: '#dc3545',
+                backgroundColor: 'rgba(220,53,69,0.2)',
+                borderWidth: 2,
+                pointRadius: 0,
+                stepped: true,
+                fill: true
+            }]},
+            options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, scales: { y: { min: -0.1, max: 1.1 } }, plugins: { legend: { position: 'top' } } }
+        }) : null;
+
+        function pushPoint(chart, value, anomalyPredicate) {
+            const now = new Date().toLocaleTimeString();
+            chart.data.labels.push(now);
+            chart.data.datasets[0].data.push(value);
+            const anomalyVal = anomalyPredicate && anomalyPredicate(value) ? value : null;
+            chart.data.datasets[1].data.push(anomalyVal);
+            const maxLen = 60;
+            if (chart.data.labels.length > maxLen) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+                chart.data.datasets[1].data.shift();
+            }
+            chart.update('none');
+        }
+
+        function liveTick() {
+            fetch('/api/monitoring/status/')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.thresholds) {
+                        window.latestThresholds = data.thresholds;
+                    }
+                    const reading = data.latest_reading;
+                    if (reading) {
+                        pushPoint(currentChart, reading.current, v => {
+                            const th = window.latestThresholds;
+                            return th ? (v < th.min_current || v > th.max_current) : false;
+                        });
+                        pushPoint(voltageChart, reading.voltage, v => {
+                            const th = window.latestThresholds;
+                            return th ? (v < th.min_voltage || v > th.max_voltage) : false;
+                        });
+                        // Approximate power if available thresholds only; use V*I as proxy
+                        const power = (reading.voltage || 0) * (reading.current || 0);
+                        pushPoint(powerChart, power, null);
+                        pushPoint(temperatureChart, reading.temperature, v => {
+                            const th = window.latestThresholds;
+                            return th ? (v < th.min_temperature || v > th.max_temperature) : false;
+                        });
+                    }
+                    const banner = document.getElementById('faultBanner');
+                    const faultTypeEl = document.getElementById('faultType');
+                    const faultStateEl = document.getElementById('faultState');
+                    if (data.state === 'FAULT') {
+                        banner.style.display = '';
+                        faultTypeEl.textContent = data.fault_type || 'UNKNOWN_FAULT';
+                        faultStateEl.textContent = 'FAULT';
+                    } else {
+                        banner.style.display = 'none';
+                    }
+
+                    // Update fault timeline if present
+                    if (faultTimelineChart) {
+                        const now = new Date().toLocaleTimeString();
+                        faultTimelineChart.data.labels.push(now);
+                        faultTimelineChart.data.datasets[0].data.push(data.state === 'FAULT' ? 1 : 0);
+                        const maxLen = 120;
+                        if (faultTimelineChart.data.labels.length > maxLen) {
+                            faultTimelineChart.data.labels.shift();
+                            faultTimelineChart.data.datasets[0].data.shift();
+                        }
+                        faultTimelineChart.update('none');
+                    }
+                })
+                .catch(() => {})
+                .finally(() => {
+                    setTimeout(liveTick, 1200);
+                });
+        }
+
+        // Start immediately (in case DOMContentLoaded already fired)
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', liveTick);
+        } else {
+            liveTick();
+        }
+    }
+
+    // Poll monitoring status for live fault/anomaly info and thresholds
+    function pollStatus() {
+        fetch('/api/monitoring/status/')
+            .then(r => r.json())
+            .then(data => {
+                if (data.thresholds) {
+                    window.latestThresholds = data.thresholds;
+                }
+                const banner = document.getElementById('faultBanner');
+                const faultTypeEl = document.getElementById('faultType');
+                const faultStateEl = document.getElementById('faultState');
+                if (data.state === 'FAULT') {
+                    banner.style.display = '';
+                    faultTypeEl.textContent = data.fault_type || 'UNKNOWN_FAULT';
+                    faultStateEl.textContent = 'FAULT';
+                } else {
+                    banner.style.display = 'none';
+                }
+            })
+            .catch(() => {});
+    }
+
+    setInterval(pollStatus, 1500);
+    pollStatus();
+
+    // AJAX simulation controls
+    function getCsrfToken() {
+        const el = document.querySelector('input[name=csrfmiddlewaretoken]');
+        return el ? el.value : '';
+    }
+
+    function postForm(url, formData) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        }).then(r => r.json()).catch(() => null);
+    }
+
+    const simNotice = document.getElementById('simNotice');
+
+    document.getElementById('startNormalForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        fd.append('type', 'normal');
+        fd.append('csrfmiddlewaretoken', getCsrfToken());
+        postForm('/api/monitoring/simulate/start/', fd).then(resp => {
+            simNotice.textContent = 'Normal simulation started';
+            pollStatus();
+        });
+    });
+
+    document.getElementById('stopNormalForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fd = new FormData();
+        fd.append('type', 'normal');
+        fd.append('csrfmiddlewaretoken', getCsrfToken());
+        postForm('/api/monitoring/simulate/stop/', fd).then(resp => {
+            simNotice.textContent = 'Normal simulation stopped';
+            pollStatus();
+        });
+    });
+
+    document.getElementById('startFaultForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        fd.append('type', 'fault');
+        fd.append('csrfmiddlewaretoken', getCsrfToken());
+        postForm('/api/monitoring/simulate/start/', fd).then(resp => {
+            simNotice.textContent = 'Fault simulation started';
+            pollStatus();
+        });
+    });
+
+    document.getElementById('stopFaultForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fd = new FormData();
+        fd.append('type', 'fault');
+        fd.append('csrfmiddlewaretoken', getCsrfToken());
+        postForm('/api/monitoring/simulate/stop/', fd).then(resp => {
+            simNotice.textContent = 'Fault simulation stopped';
+            pollStatus();
+        });
+    });
+</script>
+{% endblock %}

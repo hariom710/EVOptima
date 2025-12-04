@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>EV Charging Station - Dashboard</title>
+	<style>
+		body { font-family: Arial, sans-serif; margin: 24px; }
+		.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+		.card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
+		.indicator { font-weight: bold; padding: 8px 12px; border-radius: 999px; display: inline-block; }
+		.safe { background: #e6ffed; color: #065f46; }
+		.fault { background: #fee2e2; color: #991b1b; }
+		.stopped { background: #fef3c7; color: #92400e; }
+		#alert { display:none; padding:12px; margin-top:12px; border:1px solid #fca5a5; background:#fee2e2; color:#7f1d1d; border-radius:6px; }
+		canvas { max-height:240px; }
+	</style>
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+	<h1>EV Charging Station - Fault Detection </h1>
+	<div id="statusBox" class="card">
+		<span id="indicator" class="indicator safe">SAFE</span>
+		<div id="reading">Loading...</div>
+		<div id="simulationPhase" style="margin-top: 10px; font-weight: bold; color: #2563eb;">Simulation Phase: Starting...</div>
+		<div id="alert"></div>
+	</div>
+	<div class="grid">
+		<div class="card">
+			<h3>EV Charger Safety Thresholds</h3>
+			<div style="margin-bottom: 10px;">
+				<strong>Current:</strong> <span id="currentRange">10-30A</span><br>
+				<strong>Voltage:</strong> <span id="voltageRange">400-460V</span><br>
+				<strong>Temperature:</strong> <span id="tempRange">0-80°C</span>
+			</div>
+			<details>
+				<summary>Raw Threshold Data</summary>
+				<pre id="thresholds"></pre>
+			</details>
+		</div>
+		<div class="card">
+			<h3>Charts</h3>
+			<canvas id="chartCurrent"></canvas>
+			<canvas id="chartVoltage"></canvas>
+			<canvas id="chartTemp"></canvas>
+		</div>
+		<div class="card">
+			<h3>Recent Events</h3>
+			<ul id="events"></ul>
+		</div>
+	</div>
+	<script>
+	const maxPoints = 60;
+	const ctxI = document.getElementById('chartCurrent').getContext('2d');
+	const ctxV = document.getElementById('chartVoltage').getContext('2d');
+	const ctxT = document.getElementById('chartTemp').getContext('2d');
+
+	function makeChart(ctx, label, color) {
+		return new Chart(ctx, {
+			type: 'line',
+			data: { labels: [], datasets: [{ label, data: [], borderColor: color, tension: 0.2 }] },
+			options: { animation: false, scales: { x: { display: false }, y: { beginAtZero: false } } }
+		});
+	}
+
+	const chartI = makeChart(ctxI, 'Current (A)', '#2563eb');
+	const chartV = makeChart(ctxV, 'Voltage (V)', '#059669');
+	const chartT = makeChart(ctxT, 'Temperature (C)', '#d97706');
+
+	function pushPoint(chart, y) {
+		const d = chart.data;
+		d.labels.push('');
+		d.datasets[0].data.push(y);
+		if (d.labels.length > maxPoints) { d.labels.shift(); d.datasets[0].data.shift(); }
+		chart.update();
+	}
+
+	// Fallback to HTTP polling if WebSocket fails
+	let socket;
+	let usePolling = false;
+	
+	try {
+		socket = new WebSocket('ws://' + window.location.host + '/ws/monitoring/');
+	} catch (e) {
+		usePolling = true;
+	}
+
+	let startTime = Date.now();
+	
+	function getSimulationPhase() {
+		const elapsed = (Date.now() - startTime) / 1000;
+		if (elapsed < 8) return "Normal Charging (0-8s)";
+		else if (elapsed < 15) return "High Current Fault (8-15s) - >30A";
+		else if (elapsed < 25) return "Low Voltage Fault (15-25s) - <400V";
+		else if (elapsed < 35) return "High Temperature Fault (25-35s) - >80°C";
+		else if (elapsed < 45) return "Low Temperature Fault (35-45s) - <0°C";
+		else return "Recovery Phase (45s+)";
+	}
+
+	function updateDashboard(data) {
+		const s = data;
+		document.getElementById('thresholds').textContent = JSON.stringify(s.thresholds, null, 2);
+		document.getElementById('simulationPhase').textContent = `Simulation Phase: ${getSimulationPhase()}`;
+		
+		// Update threshold display
+		if (s.thresholds) {
+			const t = s.thresholds;
+			document.getElementById('currentRange').textContent = `${t.min_current}-${t.max_current}A`;
+			document.getElementById('voltageRange').textContent = `${t.min_voltage}-${t.max_voltage}V`;
+			document.getElementById('tempRange').textContent = `${t.min_temperature}-${t.max_temperature}°C`;
+		}
+		
+		const lr = s.latest_reading;
+		if (lr) {
+			document.getElementById('reading').textContent = `I=${lr.current}A, V=${lr.voltage}V, T=${lr.temperature}°C`;
+			pushPoint(chartI, lr.current);
+			pushPoint(chartV, lr.voltage);
+			pushPoint(chartT, lr.temperature);
+		}
+		const ind = document.getElementById('indicator');
+		ind.textContent = s.state;
+		ind.className = 'indicator ' + (s.state === 'SAFE' ? 'safe' : (s.state === 'FAULT' ? 'fault' : 'stopped'));
+		if (s.state !== 'SAFE') {
+			const alertBox = document.getElementById('alert');
+			alertBox.textContent = 'Fault detected! Check the readings and events below.';
+			alertBox.style.display = 'block';
+		} else {
+			document.getElementById('alert').style.display = 'none';
+		}
+		const list = document.getElementById('events');
+		list.innerHTML = '';
+		(s.events || []).slice(0, 10).forEach(ev => {
+			const li = document.createElement('li');
+			li.textContent = `${ev.created_at} - ${ev.event_type} - ${ev.details}`;
+			list.appendChild(li);
+		});
+	}
+
+	async function pollData() {
+		try {
+			const [s, e] = await Promise.all([
+				fetch('/api/status/').then(r => r.json()),
+				fetch('/api/events/').then(r => r.json())
+			]);
+			updateDashboard({ ...s, events: e });
+		} catch (error) {
+			console.error('Polling error:', error);
+		}
+	}
+
+	if (socket) {
+		socket.onmessage = function(e) {
+			const content = JSON.parse(e.data);
+			const data = content.data;
+			if (content.type === 'status_update' || data.latest_reading) {
+				updateDashboard(data);
+			}
+		};
+
+		socket.onclose = function(e) {
+			console.error('WebSocket closed, falling back to polling');
+			usePolling = true;
+			setInterval(pollData, 1000);
+		};
+
+		socket.onerror = function(e) {
+			console.error('WebSocket error, falling back to polling');
+			usePolling = true;
+			setInterval(pollData, 1000);
+		};
+	} else {
+		usePolling = true;
+	}
+
+	if (usePolling) {
+		setInterval(pollData, 1000);
+		pollData(); // Initial load
+	}
+	</script>
+</body>
+</html>
