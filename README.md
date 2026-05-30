@@ -1,6 +1,6 @@
 <div align="center">
 
-![header](https://capsule-render.vercel.app/api?type=waving&color=00C896&height=200&section=header&text=EVOptima&fontSize=55&fontColor=ffffff&fontAlignY=38&desc=Intelligent%20EV%20Charging%20Monitoring%20%26%20Prediction%20System&descSize=15&descAlignY=58&descColor=c8fff2)
+![header](https://capsule-render.vercel.app/api?type=waving&color=00C896&height=200&section=header&text=EVOptima&fontSize=55&fontColor=ffffff&fontAlignY=38&desc=Intelligent+EV+Charging+Monitoring+and+Prediction+System&descSize=15&descAlignY=58&descColor=c8fff2)
 
 ![Python](https://img.shields.io/badge/Python-3.10-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-5.x-092E20?style=for-the-badge&logo=django&logoColor=white)
