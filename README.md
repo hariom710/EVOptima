@@ -1,11 +1,11 @@
-![header](https://capsule-render.vercel.app/api?type=waving&color=0,15,50,0,70,190,0,160,130&height=220&section=header&text=EVOptima&fontSize=70&fontColor=ffffff&fontAlignY=38&desc=Intelligent%20EV%20Charging%20Monitoring%20%26%20Prediction%20System&descSize=17&descAlignY=58&descColor=c8e8ff)
-
 <div align="center">
+
+![header](https://capsule-render.vercel.app/api?type=waving&color=00C896&height=200&section=header&text=EVOptima&fontSize=55&fontColor=ffffff&fontAlignY=38&desc=Intelligent%20EV%20Charging%20Monitoring%20%26%20Prediction%20System&descSize=15&descAlignY=58&descColor=c8fff2)
 
 ![Python](https://img.shields.io/badge/Python-3.10-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-5.x-092E20?style=for-the-badge&logo=django&logoColor=white)
 ![RandomForest](https://img.shields.io/badge/ML-Random_Forest-FF6B35?style=for-the-badge&logo=scikitlearn&logoColor=white)
-![WebSockets](https://img.shields.io/badge/WebSockets-Django_Channels-009688?style=for-the-badge&logo=socket.io&logoColor=white)
+![WebSockets](https://img.shields.io/badge/WebSockets-Django_Channels-00C896?style=for-the-badge&logo=socket.io&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)
 
@@ -13,14 +13,14 @@
 
 > A **real-time EV charging intelligence platform** that predicts energy consumption,  
 > monitors live charging parameters, detects faults instantly, and visualizes system  
-> performance — powered by **Django Channels WebSockets** and **Random Forest ML**.
+> performance — powered by **Django Channels WebSockets** and **Random Forest ML** (R² = 0.99).
 
 <br/>
 
 [![Patent](https://img.shields.io/badge/Patent-No.%20202521090973A-FFD700?style=flat-square)](https://github.com/hariom710)
 [![GitHub](https://img.shields.io/badge/GitHub-hariom710-181717?style=flat-square&logo=github)](https://github.com/hariom710)
+[![Portfolio](https://img.shields.io/badge/Portfolio-hariombalang.netlify.app-00C896?style=flat-square&logo=netlify)](https://hariombalang.netlify.app)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-hariombalang-0A66C2?style=flat-square&logo=linkedin)](https://linkedin.com/in/hariombalang)
-[![Portfolio](https://img.shields.io/badge/Portfolio-hariombalang.netlify.app-FF6B35?style=flat-square&logo=netlify)](https://hariombalang.netlify.app)
 
 </div>
 
@@ -30,7 +30,7 @@
 
 <table>
 <tr>
-<td width="50%">
+<td>
 
 ### ⚡ Energy Prediction
 - **Random Forest Regression** model (R² = 0.99)
@@ -38,7 +38,7 @@
 - Trained on real charging session data with Scikit-Learn
 
 </td>
-<td width="50%">
+<td>
 
 ### 📡 Real-Time Monitoring
 - **WebSocket** streams via Django Channels
@@ -48,7 +48,7 @@
 </td>
 </tr>
 <tr>
-<td width="50%">
+<td>
 
 ### 🚨 Fault Detection
 - Threshold-based alerts for all parameters
@@ -56,7 +56,7 @@
 - Event log with timestamps and severity levels
 
 </td>
-<td width="50%">
+<td>
 
 ### 📊 Live Visualization
 - **Chart.js** real-time line and bar charts
@@ -66,7 +66,7 @@
 </td>
 </tr>
 <tr>
-<td width="50%">
+<td>
 
 ### 🔌 Smart Power Allocation
 - Manages multiple EV charging ports simultaneously
@@ -74,7 +74,7 @@
 - Per-session SoC and duration tracking
 
 </td>
-<td width="50%">
+<td>
 
 ### 🔐 Secure Authentication
 - Django session-based login system
@@ -278,12 +278,12 @@ docker-compose up --build
 
 ## 📋 Module Summary
 
-| Module | Responsibility |
-|---|---|
-| **monitoring** | WebSocket consumers, live sensor ingestion, dashboard views |
-| **prediction** | ML inference endpoint, model loading, feature preprocessing |
-| **fault_detection** | Threshold evaluation, alert generation, event logging |
-| **static/js** | Chart.js rendering, WebSocket client, real-time UI updates |
+| Module | Responsibility | Pattern |
+|---|---|---|
+| **monitoring** | WebSocket consumers, live sensor ingestion, dashboard views | Django Channels |
+| **prediction** | ML inference endpoint, model loading, feature preprocessing | Random Forest |
+| **fault_detection** | Threshold evaluation, alert generation, event logging | Rule-based |
+| **static/js** | Chart.js rendering, WebSocket client, real-time UI updates | Vanilla JS |
 
 ---
 
@@ -308,18 +308,19 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 ---
 
-## 🙌 Acknowledgements
+## 👤 Author
 
-- Built with ❤️ using **Python & Django**
-- ML powered by **Scikit-Learn** Random Forest
-- Real-time transport via **Django Channels** (ASGI)
-- Visualizations by **Chart.js**
-- Patent filed: **No. 202521090973 A** (October 2025)
+**Hariom Ashok Balang**
+
+Trainee Analyst @ Capgemini · BTech Computer Technology, YCCE Nagpur (2022–2026)
+
+| Platform | Link |
+|---|---|
+| 🌐 Portfolio | [hariombalang.netlify.app](https://hariombalang.netlify.app) |
+| 💼 LinkedIn | [linkedin.com/in/hariombalang](https://linkedin.com/in/hariombalang) |
+| 🐙 GitHub | [github.com/hariom710](https://github.com/hariom710) |
+| 📧 Email | hariombalang@gmail.com |
 
 ---
 
-<div align="center">
-<sub>Built by <a href="https://linkedin.com/in/hariombalang">Hariom Ashok Balang</a> · Trainee Analyst @ Capgemini · YCCE Nagpur</sub>
-</div>
-
-![footer](https://capsule-render.vercel.app/api?type=waving&color=0,15,50,0,70,190,0,160,130&height=120&section=footer)
+![footer](https://capsule-render.vercel.app/api?type=waving&color=00C896&height=100&section=footer)
