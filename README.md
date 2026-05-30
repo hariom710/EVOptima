@@ -1,9 +1,6 @@
+![header](https://capsule-render.vercel.app/api?type=waving&color=0,15,50,0,70,190,0,160,130&height=220&section=header&text=EVOptima&fontSize=70&fontColor=ffffff&fontAlignY=38&desc=Intelligent%20EV%20Charging%20Monitoring%20%26%20Prediction%20System&descSize=17&descAlignY=58&descColor=c8e8ff)
+
 <div align="center">
-
-<!-- banner.gif committed to repo root — works on all GitHub accounts -->
-![EVOptima Banner](banner.gif)
-
-<br/>
 
 ![Python](https://img.shields.io/badge/Python-3.10-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-5.x-092E20?style=for-the-badge&logo=django&logoColor=white)
@@ -174,7 +171,6 @@ All threshold breaches are logged with a timestamp, port ID, and measured value.
 EVOptima/
 ├── manage.py
 ├── requirements.txt
-├── banner.gif                  ← animated README banner
 ├── db.sqlite3
 │
 ├── evoptima/                   ← Django project config
@@ -263,7 +259,7 @@ http://127.0.0.1:8000/
 # Build and start all services
 docker-compose up --build
 
-# WebSocket connections automatically routed by Nginx → Daphne (ASGI)
+# WebSocket connections routed by Nginx → Daphne (ASGI)
 # REST API served via Gunicorn
 ```
 
@@ -277,6 +273,17 @@ docker-compose up --build
 | `POST` | `/api/predict/` | Run energy prediction |
 | `GET` | `/api/faults/` | Fetch fault log |
 | `WS` | `ws://host/ws/monitor/` | Live sensor data stream |
+
+---
+
+## 📋 Module Summary
+
+| Module | Responsibility |
+|---|---|
+| **monitoring** | WebSocket consumers, live sensor ingestion, dashboard views |
+| **prediction** | ML inference endpoint, model loading, feature preprocessing |
+| **fault_detection** | Threshold evaluation, alert generation, event logging |
+| **static/js** | Chart.js rendering, WebSocket client, real-time UI updates |
 
 ---
 
@@ -312,5 +319,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 ---
 
 <div align="center">
-<sub>Built by <a href="https://linkedin.com/in/hariombalang">Hariom Ashok Balang</a> · Trainee Analyst @ Capgemini</sub>
+<sub>Built by <a href="https://linkedin.com/in/hariombalang">Hariom Ashok Balang</a> · Trainee Analyst @ Capgemini · YCCE Nagpur</sub>
 </div>
+
+![footer](https://capsule-render.vercel.app/api?type=waving&color=0,15,50,0,70,190,0,160,130&height=120&section=footer)
