@@ -1,6 +1,9 @@
-![header](https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=0,2,8,18,30&height=220&section=header&text=EVOptima&fontSize=70&fontColor=ffffff&fontAlignY=38&desc=Intelligent%20EV%20Charging%20Monitoring%20%26%20Prediction%20System&descSize=18&descAlignY=58&descColor=d0eaff&animation=fadeIn)
-
 <div align="center">
+
+<!-- banner.gif committed to repo root — works on all GitHub accounts -->
+![EVOptima Banner](banner.gif)
+
+<br/>
 
 ![Python](https://img.shields.io/badge/Python-3.10-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-5.x-092E20?style=for-the-badge&logo=django&logoColor=white)
@@ -17,7 +20,7 @@
 
 <br/>
 
-[![Patent](https://img.shields.io/badge/Patent-No.%20202521090973A-gold?style=flat-square&logo=googlechrome)](https://github.com/hariom710)
+[![Patent](https://img.shields.io/badge/Patent-No.%20202521090973A-FFD700?style=flat-square)](https://github.com/hariom710)
 [![GitHub](https://img.shields.io/badge/GitHub-hariom710-181717?style=flat-square&logo=github)](https://github.com/hariom710)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-hariombalang-0A66C2?style=flat-square&logo=linkedin)](https://linkedin.com/in/hariombalang)
 [![Portfolio](https://img.shields.io/badge/Portfolio-hariombalang.netlify.app-FF6B35?style=flat-square&logo=netlify)](https://hariombalang.netlify.app)
@@ -135,7 +138,7 @@
 | **Voltage** | 400 V | 460 V | 🟠 Warning |
 | **Temperature** | 0 °C | 80 °C | 🔴 Critical |
 
-All threshold breaches are logged to the event log with a timestamp, port ID, and measured value.
+All threshold breaches are logged with a timestamp, port ID, and measured value.
 
 ---
 
@@ -156,7 +159,7 @@ All threshold breaches are logged to the event log with a timestamp, port ID, an
 │  │  consumers  │  │  ml_model/    │  │  thresholds      │   │
 │  └─────────────┘  └───────────────┘  └──────────────────┘   │
 └────────────────────────┬─────────────────────────────────────┘
-                         │ ORM
+                         │ Django ORM
 ┌────────────────────────▼─────────────────────────────────────┐
 │  DATA LAYER          SQLite / PostgreSQL                     │
 │  ChargingSession · SensorReading · FaultLog · EVPort         │
@@ -171,32 +174,33 @@ All threshold breaches are logged to the event log with a timestamp, port ID, an
 EVOptima/
 ├── manage.py
 ├── requirements.txt
+├── banner.gif                  ← animated README banner
 ├── db.sqlite3
 │
-├── evoptima/               ← Django project config
+├── evoptima/                   ← Django project config
 │   ├── settings.py
 │   ├── urls.py
-│   ├── asgi.py             ← ASGI entry point (WebSockets)
+│   ├── asgi.py                 ← ASGI entry point (WebSockets)
 │   └── wsgi.py
 │
-├── monitoring/             ← Real-time monitoring app
-│   ├── models.py           ← ChargingSession, SensorReading
+├── monitoring/                 ← Real-time monitoring app
+│   ├── models.py               ← ChargingSession, SensorReading
 │   ├── views.py
-│   ├── consumers.py        ← WebSocket consumers
-│   ├── services.py         ← Fault detection logic
+│   ├── consumers.py            ← WebSocket consumers
+│   ├── services.py             ← Fault detection logic
 │   └── templates/
 │
-├── prediction/             ← ML prediction app
+├── prediction/                 ← ML prediction app
 │   ├── models.py
 │   ├── views.py
 │   ├── ml_model/
-│   │   ├── model.joblib    ← Trained Random Forest model
-│   │   └── scaler.joblib   ← Feature scaler
+│   │   ├── model.joblib        ← Trained Random Forest model
+│   │   └── scaler.joblib       ← Feature scaler
 │   └── templates/
 │
 └── static/
     ├── css/
-    ├── js/                 ← Chart.js + WebSocket client
+    ├── js/                     ← Chart.js + WebSocket client
     └── img/
 ```
 
@@ -210,7 +214,7 @@ EVOptima/
 |---|---|
 | Python | 3.10+ |
 | pip | Latest |
-| Docker | Optional (for production) |
+| Docker | Optional (production) |
 
 ### Installation
 
@@ -259,8 +263,8 @@ http://127.0.0.1:8000/
 # Build and start all services
 docker-compose up --build
 
-# API served via Gunicorn + Daphne (ASGI) behind Nginx
-# WebSocket connections automatically routed by Nginx
+# WebSocket connections automatically routed by Nginx → Daphne (ASGI)
+# REST API served via Gunicorn
 ```
 
 ---
@@ -276,28 +280,16 @@ docker-compose up --build
 
 ---
 
-## 📋 Module Summary
-
-| Module | Responsibility |
-|---|---|
-| **monitoring** | WebSocket consumers, live sensor ingestion, dashboard views |
-| **prediction** | ML inference endpoint, model loading, feature preprocessing |
-| **fault_detection** | Threshold evaluation, alert generation, event logging |
-| **static/js** | Chart.js rendering, WebSocket client, real-time UI updates |
-
----
-
 ## 🤝 Contributing
 
 ```bash
-# 1. Fork the repo
-# 2. Create your feature branch
+# 1. Fork the repo and create your feature branch
 git checkout -b feature/your-feature
 
-# 3. Commit your changes
+# 2. Commit your changes
 git commit -m "feat: add your feature"
 
-# 4. Push and open a Pull Request
+# 3. Push and open a Pull Request
 git push origin feature/your-feature
 ```
 
@@ -319,4 +311,6 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 ---
 
-![footer](https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=0,2,8,18,30&height=120&section=footer&animation=fadeIn)
+<div align="center">
+<sub>Built by <a href="https://linkedin.com/in/hariombalang">Hariom Ashok Balang</a> · Trainee Analyst @ Capgemini</sub>
+</div>
