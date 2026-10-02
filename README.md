@@ -201,7 +201,7 @@ uses `I = P × 1000 / V` with **the operator's stated voltage**, not a nominal 4
 │  DATA LAYER                                    SQLite/PostgreSQL  │
 │  Thresholds · Reading · EventLog · SimulationControl · User       │
 │                                                                  │
-│  ML ARTIFACTS (gitignored)      ml/artifacts/                    │
+│  ML ARTIFACTS (committed)       ml/artifacts/                    │
 │  power-v1 · energy-v1 · current.json · meta.json · audit JSON    │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -239,7 +239,7 @@ EVOptima/
 ├── ml/
 │   ├── pipeline/                ← config (feature contracts), data, evaluate,
 │   │                              audit, train — shared by training & serving
-│   ├── artifacts/               ← gitignored build output
+│   ├── artifacts/               ← trained models (committed, ~3.7 MB)
 │   └── notebooks/
 │       └── ev_charging_prediction.ipynb
 │
@@ -257,7 +257,7 @@ EVOptima/
 ├── docs/
 │   ├── ml-findings.md           ← the ML diagnosis
 │   └── migration-notes.md
-└── data/raw/                    ← gitignored training CSVs
+└── data/raw/                    ← training CSVs (committed, 1.2 MB)
 ```
 
 ---
@@ -301,9 +301,11 @@ pip install -r requirements/dev.txt      # includes base.txt + pytest, ruff, not
 python manage.py migrate
 ```
 
-**5. Train the models** (writes `ml/artifacts/`; requires the CSVs in `data/raw/`)
+**5. Models come pre-trained** — `ml/artifacts/` ships `power-v1` (XGBoost) and
+`energy-v1` (HistGB) already trained, and `data/raw/` ships the two training CSVs,
+so `/prediction/` works immediately after step 4. Retraining is optional:
 ```bash
-python scripts/train_models.py
+python scripts/train_models.py    # re-runs the leakage audit and rewrites both models
 ```
 
 **6. Optional: seed demo readings and events**

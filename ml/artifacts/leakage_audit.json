@@ -1,0 +1,242 @@
+{
+  "ramp_diagnosis": {
+    "d1": {
+      "corr_energy_duration": 1.0,
+      "corr_energy_power": -0.0107,
+      "constant_k_r2": 0.9999
+    },
+    "d2": {
+      "corr_energy_duration": 0.9997,
+      "corr_energy_power": 0.0098,
+      "constant_k_r2": 0.9994
+    },
+    "pooled": {
+      "corr_energy_duration": 0.8869,
+      "corr_energy_power": 0.4158,
+      "constant_k_r2": 0.7401
+    }
+  },
+  "formulations": {
+    "naive_with_duration": {
+      "chronological_holdout": {
+        "d1": {
+          "r2": -3.157,
+          "mae": 1.6854,
+          "n": 602,
+          "sd": 0.0
+        },
+        "d2": {
+          "r2": 0.9958,
+          "mae": 2.0849,
+          "n": 1818,
+          "sd": 0.0
+        }
+      },
+      "blocked_cv": {
+        "d1": {
+          "r2": -3.26,
+          "mae": 1.4337,
+          "n": 3006,
+          "sd": 0.0775
+        },
+        "d2": {
+          "r2": 0.9518,
+          "mae": 5.8082,
+          "n": 9087,
+          "sd": 0.0606
+        }
+      },
+      "weighted_blocked_cv_r2": -0.0951,
+      "n_rows": 12093,
+      "protocol": "chronological + blocked CV within source"
+    },
+    "naive_without_duration": {
+      "chronological_holdout": {
+        "d1": {
+          "r2": -3.157,
+          "mae": 1.6854,
+          "n": 602,
+          "sd": 0.0
+        },
+        "d2": {
+          "r2": 0.3779,
+          "mae": 29.2408,
+          "n": 1818,
+          "sd": 0.0
+        }
+      },
+      "blocked_cv": {
+        "d1": {
+          "r2": -3.26,
+          "mae": 1.4337,
+          "n": 3006,
+          "sd": 0.0775
+        },
+        "d2": {
+          "r2": 0.639,
+          "mae": 19.3196,
+          "n": 9087,
+          "sd": 0.3186
+        }
+      },
+      "weighted_blocked_cv_r2": -0.3302,
+      "n_rows": 12093,
+      "protocol": "chronological + blocked CV within source"
+    },
+    "deployed_rate": {
+      "chronological_holdout": {
+        "d1": {
+          "r2": 0.9968,
+          "mae": 0.0497,
+          "n": 602,
+          "sd": 0.0
+        },
+        "d2": {
+          "r2": 0.9955,
+          "mae": 2.4377,
+          "n": 1818,
+          "sd": 0.0
+        }
+      },
+      "blocked_cv": {
+        "d1": {
+          "r2": 0.9986,
+          "mae": 0.0231,
+          "n": 3006,
+          "sd": 0.001
+        },
+        "d2": {
+          "r2": 0.9975,
+          "mae": 1.4396,
+          "n": 9087,
+          "sd": 0.0027
+        }
+      },
+      "weighted_blocked_cv_r2": 0.9977,
+      "n_rows": 12093,
+      "protocol": "chronological + blocked CV within source"
+    }
+  },
+  "targets": {
+    "Energy Supplied_kWh": {
+      "correlations": {
+        "Time Elapsed_s": 0.8869,
+        "Charging_Duration_h": 0.8869,
+        "month": 0.6141,
+        "Time-lap": 0.6141,
+        "Charging Rate_kW": 0.6051,
+        "Battery Voltage_BV": 0.5373,
+        "Charging Power_kW": 0.4158,
+        "Battery Current_IB": 0.415,
+        "Regenerative Power_kW": 0.4107,
+        "State Of Charge_SoC": -0.3836,
+        "Charging Current_A": 0.3475,
+        "Charging Voltage_V": 0.3349
+      },
+      "univariate_r2": {
+        "State Of Charge_SoC": 0.8285,
+        "Time Elapsed_s": 0.8271,
+        "Charging_Duration_h": 0.8271,
+        "Charging Rate_kW": 0.6424,
+        "Battery Voltage_BV": 0.3953,
+        "Battery Current_IB": 0.3917,
+        "Regenerative Power_kW": 0.383,
+        "month": 0.3771,
+        "Time-lap": 0.3771,
+        "Charging Power_kW": 0.3403,
+        "hour": 0.2683,
+        "Charging Current_A": 0.2449
+      },
+      "features": [
+        "Charging Power_kW",
+        "Battery Temperature_C",
+        "State Of Charge_SoC"
+      ]
+    },
+    "Charging Power_kW": {
+      "correlations": {
+        "Battery Current_IB": 0.9033,
+        "Charging Current_A": 0.8829,
+        "month": 0.6679,
+        "Time-lap": 0.6679,
+        "Charging Rate_kW": 0.6671,
+        "Battery Voltage_BV": 0.5925,
+        "State Of Charge_SoC": -0.5331,
+        "Regenerative Power_kW": 0.4344,
+        "Energy Supplied_kWh": 0.4158,
+        "Charging Voltage_V": 0.3761,
+        "hour": -0.336,
+        "Motor RPM": -0.329
+      },
+      "univariate_r2": {
+        "Battery Current_IB": 0.889,
+        "Charging Current_A": 0.8803,
+        "Charging Rate_kW": 0.4609,
+        "Battery Voltage_BV": 0.4601,
+        "Regenerative Power_kW": 0.4569,
+        "month": 0.4461,
+        "Time-lap": 0.4461,
+        "State Of Charge_SoC": 0.3822,
+        "Energy Supplied_kWh": 0.3253,
+        "Charging Voltage_V": 0.2194,
+        "Motor RPM": 0.1996,
+        "day_of_week": 0.1848
+      },
+      "features": [
+        "Charging Voltage_V",
+        "Charging Current_A",
+        "Battery Temperature_C",
+        "State Of Charge_SoC",
+        "hour",
+        "day_of_week",
+        "month"
+      ]
+    }
+  },
+  "allowed_features": {
+    "power": [
+      "Charging Voltage_V",
+      "Charging Current_A",
+      "Battery Temperature_C",
+      "State Of Charge_SoC",
+      "hour",
+      "day_of_week",
+      "month"
+    ],
+    "energy": [
+      "Charging Power_kW",
+      "Battery Temperature_C",
+      "State Of Charge_SoC"
+    ]
+  },
+  "excluded_features": {
+    "Time Elapsed_s": "cumulative elapsed time -- the ramp the target is built from",
+    "Charging_Duration_h": "same ramp; reapplied explicitly as energy = rate * duration",
+    "Energy Supplied_kWh": "the cumulative target itself",
+    "Charging Rate_kW": "the energy model's training target",
+    "Charging Power_kW": "the power model's training target (an input to the energy model)",
+    "Time-lap": "constant (always 10 s) -- carries no information",
+    "Regenerative Power_kW": "all zeros in ev_charging_data1.csv",
+    "Battery Voltage_BV": "near-duplicate of Charging Voltage_V; ev_charging_data2 only",
+    "Battery Current_IB": "near-duplicate of Charging Current_A; ev_charging_data2 only"
+  },
+  "retained_despite_correlation": {
+    "State Of Charge_SoC": "see soc_ablation"
+  },
+  "soc_ablation": {
+    "dropped": [
+      "State Of Charge_SoC"
+    ],
+    "with": 0.9977,
+    "without": 0.9875,
+    "delta": 0.0102,
+    "per_source_with": {
+      "d1": 0.9986,
+      "d2": 0.9975
+    },
+    "per_source_without": {
+      "d1": 0.9635,
+      "d2": 0.9955
+    }
+  }
+}
