@@ -1,0 +1,38 @@
+# Runtime dependencies shared by every environment.
+#
+# One pinned Django version for the whole project (was: 5.2.6 / 5.0.6 /
+# ">=4.2" across three inconsistent requirements files).
+Django==5.2.15
+
+# Real-time layer (WebSocket consumers, channel layers).
+# channels must match the Django 5.2 series.
+channels==4.3.0
+
+# ASGI server. Listed here rather than in prod.txt because it is also
+# referenced from INSTALLED_APPS: with daphne installed, `manage.py runserver`
+# speaks ASGI and serves the /ws/monitoring/ endpoint in development.
+daphne==4.0.0
+
+# HTTP API for the monitoring endpoints.
+djangorestframework==3.16.1
+
+# Forms.
+django-crispy-forms==2.3
+crispy-bootstrap4==2024.10
+
+# Machine-learning inference (core/model_registry.py loads these artifacts).
+#
+# xgboost is required at *load* time, not only at train time: the shipped
+# `power` model is an XGBRegressor, so joblib.load() re-imports xgboost to
+# unpickle it. Without this line a fresh `pip install -r requirements/base.txt`
+# gets through `migrate` and then fails to serve /prediction/ with an
+# ImportError naming xgboost.
+scikit-learn==1.6.1
+xgboost==3.0.0
+pandas==2.2.3
+numpy==2.2.1
+joblib==1.4.2
+
+# .env loading (config/settings/base.py reads the repo-root .env if present;
+# real environment variables always take precedence).
+python-dotenv==1.0.0

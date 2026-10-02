@@ -1,0 +1,85 @@
+# Tool configuration only.
+#
+# EVOptima is deployed from source (see requirements/ and docs/deployment.md),
+# not distributed as a package, so this file deliberately has no
+# [build-system] or [project] table: adding one would imply `pip install .`,
+# which would need package discovery for the apps/ config/ core/ layout.
+
+# ----------------------------------------------------------------------- ruff
+[tool.ruff]
+# Syntax floor, not the interpreter in use: the project is developed and
+# verified on 3.13, but this guarantees no 3.11+ only syntax slips in, so the
+# documented "Python 3.10+" requirement stays statically checkable.
+target-version = "py310"
+line-length = 100
+
+extend-exclude = [
+    # Notebook cells re-import pd/plt/sns by design; cell-wise F811/F401 is a
+    # false positive. Excluded here rather than silenced with per-file ignores.
+    "ml/notebooks",
+    ".venv",
+    "staticfiles",
+    # Build output.
+    "ml/artifacts",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings (trailing whitespace, tabs, missing EOF newline)
+    "F",   # pyflakes: unused imports, undefined names, redefinitions
+    "B",   # flake8-bugbear: real defect patterns (mutable defaults, *args unpacking)
+    "I",   # isort: import order
+    "UP",  # pyupgrade: modern syntax
+]
+ignore = [
+    # Line length is a formatter concern, not a linter one. Enforcing it here
+    # would rewrap ~120 comment/docstring lines without catching a defect, and
+    # `ruff format` is not in use so there is nothing to keep it in sync with.
+    "E501",
+    # B008: function-call values in defaults are idiomatic for Django/DRF
+    # views and forms.
+    "B008",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config", "core"]
+
+[tool.ruff.lint.per-file-ignores]
+# Gate scripts must call django.setup() before importing Django internals, so
+# their imports are intentionally not at the top of the module.
+"scripts/*" = ["E402"]
+# Test modules import fixtures/helpers after the settings module is loaded.
+"tests/*" = ["E402"]
+
+# ---------------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-ra --strict-markers --tb=short"
+
+# -------------------------------------------------------------------- coverage
+[tool.coverage.run]
+source = ["apps", "config", "core"]
+branch = true
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/test_*.py",
+    "*/conftest.py",
+    # Production-only JSON formatter; exercised by config.settings.prod, not
+    # by the dev/test logging config.
+    "core/logging.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_also = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+]

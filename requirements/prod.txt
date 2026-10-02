@@ -1,0 +1,19 @@
+# Production dependencies.
+#   pip install -r requirements/prod.txt
+-r base.txt
+
+# --- application servers ---
+# daphne (ASGI: HTTP + WebSocket) is already in base.txt because
+# INSTALLED_APPS references it. gunicorn is the process manager; pair it with
+# the daphne worker: gunicorn -k daphne.asgi.GunicornApplication config.asgi:application
+gunicorn==23.0.0
+
+# --- static files served without Django ---
+whitenoise==6.9.0
+
+# --- Redis: production channel layer (dev uses InMemoryChannelLayer) ---
+redis==8.1.0
+channels-redis==4.3.0
+
+# --- PostgreSQL (prod.py is Postgres-ready via DATABASE_URL) ---
+psycopg[binary]==3.3.1

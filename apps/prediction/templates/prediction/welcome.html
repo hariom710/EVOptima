@@ -1,0 +1,62 @@
+{% extends 'prediction/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center align-items-center" style="min-height: 80vh;">
+        <div class="col-lg-8">
+            <div class="card text-center">
+                <div class="card-body p-5">
+                    <div class="mb-4">
+                        <i class="bi bi-lightning-charge-fill" style="font-size: 5rem; color: #2563eb;"></i>
+                    </div>
+                    <h1 class="display-4 fw-bold mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                        Advanced Monitoring and Fault Detection System
+                    </h1>
+                    <p class="lead text-muted mb-5">
+                        Comprehensive EV charging station monitoring with real-time fault detection and predictive analytics
+                    </p>
+                    
+                    <div class="row g-4 mb-5">
+                        <div class="col-md-4">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body">
+                                    <i class="bi bi-cpu" style="font-size: 2.5rem; color: #2563eb;"></i>
+                                    <h5 class="mt-3">Smart Prediction</h5>
+                                    <p class="text-muted">AI-powered charging time prediction with ML models</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body">
+                                    <i class="bi bi-shield-check" style="font-size: 2.5rem; color: #10b981;"></i>
+                                    <h5 class="mt-3">Fault Detection</h5>
+                                    <p class="text-muted">Real-time monitoring and automatic fault detection</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body">
+                                    <i class="bi bi-graph-up-arrow" style="font-size: 2.5rem; color: #f59e0b;"></i>
+                                    <h5 class="mt-3">Data Visualization</h5>
+                                    <p class="text-muted">Interactive charts and real-time data visualization</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="/home/" class="btn btn-primary btn-lg px-5">
+                            <i class="bi bi-arrow-right-circle"></i> Go to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

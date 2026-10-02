@@ -1,0 +1,55 @@
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ----- Virtual envs -----
+.venv/
+venv/
+env/
+
+# ----- Secrets / local config -----
+.env
+.env.*
+!.env.example
+
+# ----- Django -----
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+*.log
+media/
+
+# ----- ML artifacts (re-generate with `python scripts/train_models.py`) -----
+*.joblib
+ml/artifacts/
+
+# ----- Data (raw datasets stay local) -----
+data/raw/
+ev_charging_data*.csv
+ev_charging_data*.xlsx
+ev_data.csv.csv
+
+# ----- Notebooks -----
+.ipynb_checkpoints/
+
+# TEMP (Phase 0): duplicate wrapper tree is byte-identical and is deleted in
+# Phase 1; ignore its one remaining untracked file so status stays clean.
+# Remove this rule together with the EVOptima/EVOptima/ folder in Phase 1.
+EVOptima/EVOptima/
+
+# ----- Tests / coverage -----
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# ----- Editors / OS -----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

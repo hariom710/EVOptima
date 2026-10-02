@@ -1,0 +1,356 @@
+{% extends 'prediction/base.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Status Banner -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h2 class="mb-0">
+                                <i class="bi bi-speedometer2"></i> System Status
+                            </h2>
+                            {% if latest_reading %}
+                                <p class="text-muted mb-0 mt-2">
+                                    Current: {{ latest_reading.current|floatformat:2 }}A | 
+                                    Voltage: {{ latest_reading.voltage|floatformat:2 }}V | 
+                                    Temperature: {{ latest_reading.temperature|floatformat:2 }}°C
+                                </p>
+                            {% else %}
+                                <p class="text-muted mb-0 mt-2">No readings available yet</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 text-end">
+                            {% if state == 'SAFE' %}
+                                <span class="badge status-safe fs-5 px-4 py-2">
+                                    <i class="bi bi-check-circle"></i> SAFE
+                                </span>
+                            {% else %}
+                                <span class="badge status-fault fs-5 px-4 py-2">
+                                    <i class="bi bi-exclamation-triangle"></i> FAULT DETECTED
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Left Column: Prediction Forms -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="bi bi-graph-up"></i> Charging Prediction</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="predictionForm">
+                        {% csrf_token %}
+                        {% for form in forms %}
+                            <div class="mb-4 p-3 border rounded">
+                                <h6 class="mb-3">Vehicle {{ forloop.counter }}</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        {{ form.battery_temp|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        {{ form.soc|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        {{ form.duration|as_crispy_field }}
+                                    </div>
+                                    <div class="col-12">
+                                        {{ form.timestamp|as_crispy_field }}
+                                    </div>
+                                </div>
+                                {% with forloop.counter0 as idx %}
+                                {% for prediction in predictions %}
+                                {% if prediction.index == idx %}
+                                <div class="mt-3 p-3 bg-light rounded">
+                                    {% if prediction.fault_detected %}
+                                    <div class="alert alert-danger mb-2">
+                                        <i class="bi bi-exclamation-triangle"></i> <strong>Fault Detected!</strong><br>
+                                        <small>{{ prediction.fault_message }}</small>
+                                    </div>
+                                    {% else %}
+                                    <div class="alert alert-success mb-2">
+                                        <i class="bi bi-check-circle"></i> <strong>System Safe</strong>
+                                    </div>
+                                    {% endif %}
+                                    <small class="text-muted">Predicted Energy: <strong>{{ prediction.predicted_value|floatformat:2 }} kWh</strong></small>
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                                {% endwith %}
+                            </div>
+                        {% endfor %}
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            <i class="bi bi-calculator"></i> Calculate Predictions
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Monitoring & Events -->
+        <div class="col-lg-6">
+            <!-- Simulation Controls -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-play-circle"></i> Simulation Controls</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <h6>Normal Charging</h6>
+                            <form method="post" action="/api/monitoring/simulate/start/" class="mb-2">
+                                {% csrf_token %}
+                                <input type="hidden" name="type" value="normal">
+                                <div class="mb-2">
+                                    <input type="number" name="duration" class="form-control form-control-sm" 
+                                           placeholder="Duration (seconds)" step="1" min="1">
+                                </div>
+                                <button type="submit" class="btn btn-success btn-sm w-100">
+                                    <i class="bi bi-play-fill"></i> Start Normal
+                                </button>
+                            </form>
+                            <form method="post" action="/api/monitoring/simulate/stop/">
+                                {% csrf_token %}
+                                <input type="hidden" name="type" value="normal">
+                                <button type="submit" class="btn btn-danger btn-sm w-100">
+                                    <i class="bi bi-stop-fill"></i> Stop
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Fault Detection</h6>
+                            <form method="post" action="/api/monitoring/simulate/start/" class="mb-2">
+                                {% csrf_token %}
+                                <input type="hidden" name="type" value="fault">
+                                <div class="mb-2">
+                                    <input type="number" name="cycles" class="form-control form-control-sm" 
+                                           placeholder="Cycles (1 cycle = 50s)" step="1" min="1" value="1">
+                                </div>
+                                <button type="submit" class="btn btn-warning btn-sm w-100">
+                                    <i class="bi bi-play-fill"></i> Start Fault
+                                </button>
+                            </form>
+                            <form method="post" action="/api/monitoring/simulate/stop/">
+                                {% csrf_token %}
+                                <input type="hidden" name="type" value="fault">
+                                <button type="submit" class="btn btn-danger btn-sm w-100">
+                                    <i class="bi bi-stop-fill"></i> Stop
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        <i class="bi bi-info-circle"></i> Simulations run in background and log readings automatically
+                    </small>
+                </div>
+            </div>
+            
+            <!-- Safety Thresholds -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> Safety Thresholds</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Current Range</small>
+                                <h6 class="mb-0">{{ thresholds.min_current }}A - {{ thresholds.max_current }}A</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Voltage Range</small>
+                                <h6 class="mb-0">{{ thresholds.min_voltage }}V - {{ thresholds.max_voltage }}V</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">Temperature Range</small>
+                                <h6 class="mb-0">{{ thresholds.min_temperature }}°C - {{ thresholds.max_temperature }}°C</h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Events -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-list-ul"></i> Recent Events</h5>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    {% if recent_events %}
+                        <div class="list-group list-group-flush">
+                            {% for event in recent_events %}
+                                <div class="list-group-item border-0 px-0">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">
+                                                {% if event.event_type == 'FAULT_DETECTED' %}
+                                                    <span class="badge bg-danger me-2">FAULT</span>
+                                                {% elif event.event_type == 'PREDICTION_ERROR' %}
+                                                    <span class="badge bg-warning me-2">ERROR</span>
+                                                {% elif event.event_type == 'CHARGING_STOPPED' %}
+                                                    <span class="badge bg-warning me-2">STOPPED</span>
+                                                {% else %}
+                                                    <span class="badge bg-info me-2">{{ event.event_type }}</span>
+                                                {% endif %}
+                                                {{ event.details|truncatewords:15 }}
+                                            </h6>
+                                            <small class="text-muted">{{ event.created_at|date:"M d, Y H:i:s" }}</small>
+                                            {% if event.response %}
+                                                <p class="mb-0 mt-1 small text-muted">{{ event.response }}</p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted text-center">No events yet</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Monitoring Charts -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-graph-up-arrow"></i> Real-time Monitoring</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <canvas id="currentChart" style="max-height: 250px;"></canvas>
+                        </div>
+                        <div class="col-md-4">
+                            <canvas id="voltageChart" style="max-height: 250px;"></canvas>
+                        </div>
+                        <div class="col-md-4">
+                            <canvas id="tempChart" style="max-height: 250px;"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Initialize charts
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+            y: { beginAtZero: false },
+            x: { display: false }
+        },
+        plugins: {
+            legend: { display: true, position: 'top' }
+        }
+    };
+
+    const currentChart = new Chart(document.getElementById('currentChart'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Current (A)',
+                data: [],
+                borderColor: '#2563eb',
+                tension: 0.4
+            }]
+        },
+        options: chartOptions
+    });
+
+    const voltageChart = new Chart(document.getElementById('voltageChart'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Voltage (V)',
+                data: [],
+                borderColor: '#10b981',
+                tension: 0.4
+            }]
+        },
+        options: chartOptions
+    });
+
+    const tempChart = new Chart(document.getElementById('tempChart'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Temperature (°C)',
+                data: [],
+                borderColor: '#f59e0b',
+                tension: 0.4
+            }]
+        },
+        options: chartOptions
+    });
+
+    // Update charts periodically
+    function updateCharts() {
+        fetch('/api/monitoring/status/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.latest_reading) {
+                    const reading = data.latest_reading;
+                    const now = new Date().toLocaleTimeString();
+                    
+                    // Update current chart
+                    currentChart.data.labels.push(now);
+                    currentChart.data.datasets[0].data.push(reading.current);
+                    if (currentChart.data.labels.length > 20) {
+                        currentChart.data.labels.shift();
+                        currentChart.data.datasets[0].data.shift();
+                    }
+                    currentChart.update('none');
+                    
+                    // Update voltage chart
+                    voltageChart.data.labels.push(now);
+                    voltageChart.data.datasets[0].data.push(reading.voltage);
+                    if (voltageChart.data.labels.length > 20) {
+                        voltageChart.data.labels.shift();
+                        voltageChart.data.datasets[0].data.shift();
+                    }
+                    voltageChart.update('none');
+                    
+                    // Update temperature chart
+                    tempChart.data.labels.push(now);
+                    tempChart.data.datasets[0].data.push(reading.temperature);
+                    if (tempChart.data.labels.length > 20) {
+                        tempChart.data.labels.shift();
+                        tempChart.data.datasets[0].data.shift();
+                    }
+                    tempChart.update('none');
+                }
+            })
+            .catch(error => console.error('Error updating charts:', error));
+    }
+
+    // Update every 2 seconds
+    setInterval(updateCharts, 2000);
+    updateCharts(); // Initial update
+</script>
+{% endblock %}
+
