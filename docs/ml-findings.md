@@ -182,7 +182,11 @@ ml/artifacts/
     leakage_audit.json           the audit behind every claim above
 ```
 
-`ml/artifacts` is **gitignored** (model binaries are build output). Retrain with:
+`ml/artifacts` and the two training CSVs in `data/raw/` are **committed**, so a
+fresh clone serves predictions straight after `migrate` and can retrain too.
+Only *future* retrain output is ignored (`ml/artifacts/*-v[0-9]*`, except the
+`power-v1` / `energy-v1` that `current.json` points at), so a retrain does not
+silently add ~3.5 MB to the repo. Retrain with:
 
 ```bash
 python scripts/train_models.py            # audit + both models + terminal report

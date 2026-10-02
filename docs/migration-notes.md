@@ -71,8 +71,8 @@ renders without chart data and falls back to the live fault view instead).
 | `EVOptima/ev_charging_project/ev_charging_project/` | `config/` |
 | `EVOptima/ev_charging_project/{accounts,monitoring,prediction,visualization}/` | `apps/{...}/` |
 | `EVOptima/ev_charging_project/static/` | `static/` (root) |
-| `EVOptima/ev_charging_project/model/{model,scaler}.joblib` | `ml/artifacts/` (gitignored) |
-| `EVOptima/ev_charging_project/data/*.csv` | `data/raw/` (gitignored) |
+| `EVOptima/ev_charging_project/model/{model,scaler}.joblib` | `ml/artifacts/` (committed) |
+| `EVOptima/ev_charging_project/data/*.csv` | `data/raw/` (committed — the two training CSVs) |
 | `EVOptima/ev_charging_prediction.ipynb` | `ml/notebooks/` |
 | `EVOptima/*.csv`, `*.xlsx` | `data/raw/` |
 | `staticfiles/`, `db.sqlite3`, duplicate `EVOptima/EVOptima/` | deleted / regenerated |

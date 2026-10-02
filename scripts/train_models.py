@@ -90,6 +90,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_audit:
         print(_stored_audit())
     print(_serving_summary(results))
+    note = _shipping_note(results)
+    if note:
+        print(note)
     return 0
 
 
@@ -126,6 +129,58 @@ def _serving_summary(results: dict) -> str:
     lines.append(f"Power features : {', '.join(POWER_FEATURES)}")
     lines.append(f"Energy features: {', '.join(ENERGY_FEATURES)}")
     return "\n".join(lines)
+
+
+def _shipping_note(results: dict) -> str:
+    """Warn when a freshly trained version is not committed to git.
+
+    ``.gitignore`` ignores ``ml/artifacts/*-v[0-9]*`` so a retrain does not add
+    ~3.5 MB to the repo, while ``!`` rules keep the shipped ``power-v1`` /
+    ``energy-v1`` tracked. Promoting a new version is therefore a two-step move,
+    and doing only the ``current.json`` half silently re-breaks a fresh clone:
+    the pointer would name a directory git never received.
+    """
+    lines: list[str] = []
+    for name, meta in results.items():
+        version = meta.get("version")
+        target = export_root() / str(version) / "model.joblib"
+        if not version or not target.is_file() or _is_git_tracked(target):
+            continue
+        lines += [
+            "-" * 78,
+            "SHIPPING NOTE",
+            f"{name} -> {version} is NOT tracked by git, but current.json now",
+            "points at it. A fresh clone would therefore have no",
+            f"{name} model and /prediction/ would fail.",
+            "",
+            "To promote it, add this line to .gitignore:",
+            f"    !ml/artifacts/{version}/",
+            "then commit the rule together with the artifacts:",
+            f"    git add .gitignore ml/artifacts/{version} "
+            "ml/artifacts/current.json ml/artifacts/meta.json",
+        ]
+    return "\n".join(lines)
+
+
+def _is_git_tracked(path: Path) -> bool:
+    """True when ``path`` is already tracked; assumes true if git is absent."""
+    import subprocess
+
+    try:
+        rel = path.resolve().relative_to(ROOT)
+    except ValueError:  # pragma: no cover - artifact outside the repo
+        return True
+    try:
+        proc = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", "--", str(rel)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError):  # pragma: no cover - no git
+        return True
+    return proc.returncode == 0
 
 
 if __name__ == "__main__":
