@@ -26,17 +26,17 @@ media/
 # ----- ML artifacts -----
 # Deliberately committed, NOT ignored: a fresh clone must be able to serve
 # /prediction/ straight after `migrate`, with no training run first. What is
-# shipped is everything `current.json` points at -- power-v1/, energy-v1/, the
-# legacy root alias (model.joblib/scaler.joblib), meta.json and the leakage
-# audit -- about 3.7 MB.
+# shipped is everything `current.json` points at -- power-v1/, the legacy root
+# alias (model.joblib/scaler.joblib), meta.json and the leakage audit.
+# There is one model only; see ml/pipeline/__init__.py for why a second one
+# cannot be learned from these CSVs.
 #
 # Version directories from a *future* retrain are ignored so that re-running
 # `python scripts/train_models.py` does not silently add ~3.5 MB per retrain.
-# When you promote a new version, move the two `!` rules down to it (and
+# When you promote a new version, move the `!` rule down to it (and
 # commit the updated current.json).
 ml/artifacts/*-v[0-9]*/
 !ml/artifacts/power-v1/
-!ml/artifacts/energy-v1/
 # A model dumped at the repo root by mistake.
 /*.joblib
 

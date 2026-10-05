@@ -13,7 +13,9 @@ Three properties are easy to reintroduce silently, so each is pinned against the
 * **the serving budget** -- the previous artifact was 21.9 MB and 9.0 ms a row.
 
 The view behaviours fixed alongside are pinned too: predictions keyed by form
-index, the out-of-distribution guard, and the two-model chain.
+index, the out-of-distribution guard, and the power -> energy chain. The last
+of those is pinned *behaviourally*: raising the operator's current has to raise
+the energy figure, which it did not while a second model sat between them.
 """
 from __future__ import annotations
 
@@ -28,8 +30,6 @@ from apps.monitoring.models import EventLog
 from apps.prediction.views import _feature_frame, _out_of_range
 from core.model_registry import ModelNotAvailable, registry
 from ml.pipeline.config import (
-    ENERGY_FEATURES,
-    ENERGY_MODEL_NAME,
     POWER_FEATURES,
     POWER_MODEL_NAME,
     SPECS,
@@ -59,41 +59,48 @@ def _form_fields(**overrides) -> dict:
 
 @pytest.fixture
 def artifacts() -> dict:
-    """``meta.json`` for both models, skipping if they have not been trained."""
-    missing = [
-        name
-        for name in (POWER_MODEL_NAME, ENERGY_MODEL_NAME)
-        if not registry.available(name)
-    ]
+    """``meta.json`` for every shipped model, skipping if not yet trained."""
+    missing = [name for name in (POWER_MODEL_NAME,) if not registry.available(name)]
     if missing:
         pytest.skip(
             f"artifact(s) not published: {', '.join(missing)} -- "
             "run `python scripts/train_models.py`"
         )
-    return {name: registry.meta(name) for name in (POWER_MODEL_NAME, ENERGY_MODEL_NAME)}
+    return {name: registry.meta(name) for name in (POWER_MODEL_NAME,)}
 
 
 class TestArtifactContract:
     """Everything the loader and the provenance card assert on at request time."""
 
-    def test_current_json_publishes_both_models(self, artifacts):
+    def test_current_json_publishes_the_power_model(self, artifacts):
         pointers = registry.versions()
-        assert set(pointers) == {POWER_MODEL_NAME, ENERGY_MODEL_NAME}
+        assert set(pointers) == {POWER_MODEL_NAME}
         for name, version in pointers.items():
             assert version.startswith(f"{name}-v")
+        # A retired model must not leave a pointer naming a directory that was
+        # never shipped -- the loader would fail on an otherwise good clone.
+        root = pathlib.Path(settings.MODEL_DIR)
+        for version in pointers.values():
+            assert (root / version).is_dir(), version
 
     def test_feature_order_matches_the_config_source_of_truth(self, artifacts):
         """The whole reason meta.json exists."""
         assert artifacts[POWER_MODEL_NAME]["features"] == POWER_FEATURES
-        assert artifacts[ENERGY_MODEL_NAME]["features"] == ENERGY_FEATURES
 
-    def test_legacy_root_alias_is_the_active_energy_model(self, artifacts):
-        """`registry.get()` with no name must keep resolving to the energy model."""
+    def test_legacy_root_alias_is_the_active_power_model(self, artifacts):
+        """`registry.get()` with no name must keep resolving to a real model."""
         root = json.loads(
             (pathlib.Path(settings.MODEL_DIR) / "meta.json").read_text(encoding="utf-8")
         )
-        assert root["features"] == ENERGY_FEATURES
-        assert root["version"] == registry.versions()[ENERGY_MODEL_NAME]
+        assert root["features"] == POWER_FEATURES
+        assert root["version"] == registry.versions()[POWER_MODEL_NAME]
+
+    def test_energy_is_declared_derived_not_learned(self, artifacts):
+        """The provenance card must not claim a model for the kWh figure."""
+        from ml.pipeline.config import ENERGY_DERIVED
+
+        meta = artifacts[POWER_MODEL_NAME]
+        assert meta["derived"] == ENERGY_DERIVED
 
     def test_every_feature_has_a_recorded_training_range(self, artifacts):
         """The OOD guard compares against this; a gap means an input is never checked."""
@@ -117,8 +124,9 @@ class TestArtifactContract:
 
     def test_artifacts_fit_the_serving_budget(self, artifacts):
         total = sum(meta["size_bytes_model"] for meta in artifacts.values())
-        # Previously 21.9 MB across the pair.
-        assert total < 6_000_000, f"{total / 1e6:.2f} MB exceeds the 6 MB budget"
+        # One model now: 3.2 MB, against 21.9 MB when two shipped and 3.4 MB
+        # for the pair after the first downgrade.
+        assert total < 4_000_000, f"{total / 1e6:.2f} MB exceeds the 4 MB budget"
 
     def test_single_row_latency_fits_the_serving_budget(self, artifacts):
         for name, meta in artifacts.items():
@@ -159,7 +167,7 @@ class TestFeatureFrame:
 
 
 @pytest.mark.django_db
-class TestTwoModelChain:
+class TestServingChain:
     """power -> rate -> energy, in the order the view chains them."""
 
     @pytest.fixture
@@ -175,6 +183,39 @@ class TestTwoModelChain:
             entry["charging_rate"] * entry["duration"], rel=1e-9
         )
         assert entry["predicted_value"] > 0
+
+    def test_the_rate_is_the_forecast_power(self, entry):
+        """The sustained rate of a session is its power -- Energy is exactly
+        integral(P dt), so there is no separate quantity to model."""
+        assert entry["charging_rate"] == pytest.approx(
+            entry["charging_power"], rel=1e-9
+        )
+
+    @pytest.mark.parametrize("current", ["5", "15", "80"])
+    def test_energy_responds_to_the_operator_s_current(self, auth_client, current):
+        """Regression: with a second model between power and kWh, 5 A and 15 A
+        both returned 8.78 kWh. Energy must scale with the drawn power."""
+        response = auth_client.post(
+            reverse("prediction:predict"),
+            _form_fields(**{"form0-voltage": "400", "form0-current": current}),
+        )
+        entry = response.context["predictions"][0]
+        assert entry["predicted_value"] == pytest.approx(
+            entry["charging_power"] * entry["duration"], rel=1e-6
+        )
+        # 400 V x 5 A = 2 kW over 2 h is 4 kWh; at 80 A it is 64 kWh.
+        assert entry["predicted_value"] > 0
+
+    def test_energy_scales_monotonically_with_current(self, auth_client):
+        """Doubling the current must not leave the energy figure unchanged."""
+        energies = []
+        for amps in ("5", "20", "80"):
+            response = auth_client.post(
+                reverse("prediction:predict"),
+                _form_fields(**{"form0-voltage": "400", "form0-current": amps}),
+            )
+            energies.append(response.context["predictions"][0]["predicted_value"])
+        assert energies[0] < energies[1] < energies[2], energies
 
     def test_derived_current_is_power_over_voltage(self, entry):
         """The fault check must use the operator's voltage, not a 400 V assumption."""
@@ -300,18 +341,21 @@ class TestPredictionsAreKeyedByFormIndex:
 class TestProvenanceCard:
     """A prediction has to be attributable to a version and an algorithm."""
 
-    def test_the_page_names_both_artifacts(self, auth_client, artifacts):
+    def test_the_page_names_the_shipped_artifact(self, auth_client, artifacts):
         html = auth_client.get(reverse("prediction:predict")).content.decode()
         assert "Model Provenance" in html
         assert SPECS[POWER_MODEL_NAME]["algorithm"] in html
-        assert SPECS[ENERGY_MODEL_NAME]["algorithm"] in html
         assert artifacts[POWER_MODEL_NAME]["version"] in html
-        assert artifacts[ENERGY_MODEL_NAME]["version"] in html
 
-    def test_the_page_shows_both_targets(self, auth_client, artifacts):
+    def test_the_page_shows_the_target_and_the_derivation(self, auth_client, artifacts):
+        """kWh is claimed as arithmetic, not as a second model's output."""
+        from ml.pipeline.config import ENERGY_DERIVED
+
         html = auth_client.get(reverse("prediction:predict")).content.decode()
         assert artifacts[POWER_MODEL_NAME]["target"] in html
-        assert artifacts[ENERGY_MODEL_NAME]["target"] in html
+        assert ENERGY_DERIVED in html
+        # The retired model must not still be advertised on the page.
+        assert "HistGradientBoostingRegressor" not in html
 
     def test_the_page_shows_a_measured_r_squared(self, auth_client, artifacts):
         html = auth_client.get(reverse("prediction:predict")).content.decode()

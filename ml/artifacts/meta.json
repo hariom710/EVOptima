@@ -1,15 +1,19 @@
 {
-  "name": "energy",
-  "algorithm": "HistGradientBoostingRegressor",
-  "target": "Charging Rate_kW",
-  "metric_target": "Energy Supplied_kWh",
+  "name": "power",
+  "algorithm": "XGBRegressor",
+  "target": "Charging Power_kW",
+  "metric_target": "Charging Power_kW",
   "features": [
-    "Charging Power_kW",
+    "Charging Voltage_V",
+    "Charging Current_A",
     "Battery Temperature_C",
-    "State Of Charge_SoC"
+    "State Of Charge_SoC",
+    "hour",
+    "day_of_week",
+    "month"
   ],
-  "output": "charging_rate_kw",
-  "derived": "energy_kwh = charging_rate_kw * duration_h",
+  "output": "charging_power_kw",
+  "derived": "energy_kwh = charging_power_kw * duration_h",
   "scaled": true,
   "protocol": "chronological 80/20 holdout plus TimeSeriesSplit(5) blocked CV, run independently within each source so no fold spans the d1 -> d2 operating-regime boundary",
   "evaluation": {
@@ -17,40 +21,44 @@
     "blocked_cv_splits": 5,
     "chronological_holdout": {
       "d1": {
-        "r2": 0.9968,
-        "mae": 0.0497,
+        "r2": 0.996,
+        "mae": 0.0868,
         "n": 602,
         "sd": 0.0
       },
       "d2": {
-        "r2": 0.9955,
-        "mae": 2.4377,
+        "r2": 0.9984,
+        "mae": 0.3742,
         "n": 1818,
         "sd": 0.0
       }
     },
     "blocked_cv": {
       "d1": {
-        "r2": 0.9986,
-        "mae": 0.0231,
+        "r2": 0.9917,
+        "mae": 0.1202,
         "n": 3006,
-        "sd": 0.001
+        "sd": 0.004
       },
       "d2": {
-        "r2": 0.9975,
-        "mae": 1.4396,
+        "r2": 0.9974,
+        "mae": 0.4758,
         "n": 9087,
-        "sd": 0.0027
+        "sd": 0.0012
       }
     },
-    "weighted_blocked_cv_r2": 0.9977,
+    "weighted_blocked_cv_r2": 0.996,
     "n_rows": 12093,
     "protocol": "chronological + blocked CV within source"
   },
   "input_ranges": {
-    "Charging Power_kW": [
-      1.001,
-      50.0
+    "Charging Voltage_V": [
+      200.053,
+      799.994
+    ],
+    "Charging Current_A": [
+      2.047,
+      165.62
     ],
     "Battery Temperature_C": [
       20.0,
@@ -59,21 +67,33 @@
     "State Of Charge_SoC": [
       20.0,
       53.057
+    ],
+    "hour": [
+      0.0,
+      7.0
+    ],
+    "day_of_week": [
+      1.0,
+      4.0
+    ],
+    "month": [
+      2.0,
+      3.0
     ]
   },
   "datasets": {
     "d1": 3006,
     "d2": 9087
   },
-  "training_rows": 12088,
-  "trained_at": "2026-10-01T19:19:23+00:00",
-  "latency_ms_1row": 0.888,
-  "size_bytes_model": 268352,
+  "training_rows": 12093,
+  "trained_at": "2026-10-05T17:35:59+00:00",
+  "latency_ms_1row": 0.329,
+  "size_bytes_model": 3200368,
   "environment": {
     "python": "3.13.0",
     "sklearn": "unknown",
     "xgboost": "3.0.0"
   },
   "audit_file": "leakage_audit.json",
-  "version": "energy-v1"
+  "version": "power-v1"
 }

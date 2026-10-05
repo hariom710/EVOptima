@@ -13,7 +13,7 @@
     "month"
   ],
   "output": "charging_power_kw",
-  "derived": null,
+  "derived": "energy_kwh = charging_power_kw * duration_h",
   "scaled": true,
   "protocol": "chronological 80/20 holdout plus TimeSeriesSplit(5) blocked CV, run independently within each source so no fold spans the d1 -> d2 operating-regime boundary",
   "evaluation": {
@@ -86,8 +86,8 @@
     "d2": 9087
   },
   "training_rows": 12093,
-  "trained_at": "2026-10-01T19:19:13+00:00",
-  "latency_ms_1row": 0.404,
+  "trained_at": "2026-10-05T17:35:59+00:00",
+  "latency_ms_1row": 0.329,
   "size_bytes_model": 3200368,
   "environment": {
     "python": "3.13.0",

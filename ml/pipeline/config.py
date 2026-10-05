@@ -10,11 +10,17 @@ from collections.abc import Callable
 
 # --------------------------------------------------------------- model names
 POWER_MODEL_NAME = "power"
-ENERGY_MODEL_NAME = "energy"
 
-#: The legacy artifacts at the root of ``settings.MODEL_DIR`` are the energy
-#: model -- that is what ``registry.get()`` has always returned.
-DEFAULT_MODEL_NAME = ENERGY_MODEL_NAME
+#: There is deliberately only one model. ``Charging Rate_kW x
+#: Charging_Duration_h`` is *exactly* ``Energy Supplied_kWh`` in both supplied
+#: CSVs, and ``Charging Power_kW`` equals ``V x I / 1000`` to within 0.14 %, so
+#: the quantity a second model would have to predict is ``power x duration`` --
+#: already determined the moment the operator presses submit. See
+#: ``ENERGY_FEATURES`` below for the measurements that ruled a second model out.
+#:
+#: The legacy artifacts at the root of ``settings.MODEL_DIR`` are therefore the
+#: power model -- that is what ``registry.get()`` has always returned.
+DEFAULT_MODEL_NAME = POWER_MODEL_NAME
 
 # ------------------------------------------------------------------ targets
 POWER_TARGET = "Charging Power_kW"
@@ -52,18 +58,19 @@ POWER_FEATURES = [
     "month",
 ]
 
-#: HistGB energy model -- predicts the *average charging rate* (kW), not
-#: cumulative kWh. Duration is deliberately absent (it is the ramp the
-#: cumulative target is built from) and is reapplied by the view as
-#: ``energy = rate * duration``.
+#: Feature list the leakage audit evaluates the *rejected* energy formulation
+#: against. Nothing trained on it ships -- see ``SPECS``.
 #:
-#: Calendar features are excluded here on purpose, unlike the power model.
-#: The two sources are a month apart, so ``month`` and ``day_of_week`` act as
-#: perfect dataset identifiers: with them present the model answers 26.98 kW
-#: for *any* current the operator enters, and a 12 kWh session comes back as
-#: 54 kWh. Dropping them costs 0.0015 of blocked-CV R2 (0.9978 vs 0.9993) and
-#: makes the prediction respond to the physical inputs again. Regime
-#: information still reaches this model through the power model's output.
+#: Kept because it is the evidence: with these three inputs the target
+#: ``Energy / Duration`` cannot be learned. ``Charging Rate_kW x
+#: Charging_Duration_h`` *is* ``Energy Supplied_kWh`` exactly, so the ratio is
+#: the running mean of a stationary power series: coefficient of variation
+#: 2.55 % (d1) and 3.22 % (d2) against 43.88 % / 47.41 % for
+#: ``Charging Power_kW``, with ``corr(rate, power) = +0.035``. A model fitted
+#: here does not learn a response to current, it learns a threshold that says
+#: "which dataset is this" -- the shipped one answered 4.392 kW or 21.668 kW and
+#: nothing in between, and served 75.2 % mean absolute error against
+#: ``power * duration`` (251.3 % worst case).
 ENERGY_FEATURES = [
     "Charging Power_kW",
     "Battery Temperature_C",
@@ -106,7 +113,12 @@ def power_estimator():
 
 
 def energy_estimator():
-    """HistGradientBoostingRegressor for the average charging rate."""
+    """HistGradientBoostingRegressor, used only to *audit* the rejected target.
+
+    The audit has to fit the formulation it is ruling out in order to report a
+    number for it; keeping the factory here means the audit and the notebook
+    agree on hyperparameters. No instance of this is exported.
+    """
     from sklearn.ensemble import HistGradientBoostingRegressor
 
     return HistGradientBoostingRegressor(
@@ -119,10 +131,19 @@ def energy_estimator():
     )
 
 
+#: The single shipped model. A second entry would mean a second artifact to
+#: version, load and keep in step -- for a quantity the view can compute
+#: exactly in one line (``ENERGY_DERIVED``).
 ESTIMATORS: dict[str, Callable[[], object]] = {
     POWER_MODEL_NAME: power_estimator,
-    ENERGY_MODEL_NAME: energy_estimator,
 }
+
+#: How the view gets kWh. Exact rather than learned: ``Charging Rate_kW x
+#: Charging_Duration_h`` equals ``Energy Supplied_kWh`` to 0.00000000 kWh and
+#: ``integral(P dt)`` to within 0.098 kWh per row across both CSVs, and
+#: ``Charging Power_kW`` equals ``V x I / 1000`` to within 0.14 % -- so once the
+#: power model has forecast P the energy is arithmetic.
+ENERGY_DERIVED = "energy_kwh = charging_power_kw * duration_h"
 
 #: Model metadata -- which features, which target, and how the output is turned
 #: into the value the UI shows.
@@ -132,16 +153,8 @@ SPECS: dict[str, dict] = {
         "target": POWER_TARGET,
         "features": POWER_FEATURES,
         "output": "charging_power_kw",
-        "derived": None,
+        "derived": ENERGY_DERIVED,
         "estimator": power_estimator,
-    },
-    ENERGY_MODEL_NAME: {
-        "algorithm": "HistGradientBoostingRegressor",
-        "target": RATE_TARGET,
-        "features": ENERGY_FEATURES,
-        "output": "charging_rate_kw",
-        "derived": "energy_kwh = charging_rate_kw * duration_h",
-        "estimator": energy_estimator,
     },
 }
 

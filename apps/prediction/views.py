@@ -7,12 +7,19 @@ DataFrame whose order happened to match, and whose ``Charging Power_kW`` entry
 was a constant 50.0 that the training data never contained (range 1.0-7.0 kW in
 one source, 5.0-50.0 in the other, mean 3.96).
 
-Two models are chained::
+One model is used, then arithmetic::
 
     form (V, I, temp, SoC, duration, timestamp)
         -> power  (XGBoost)  -> charging power kW
-        -> energy (HistGB)   -> average charging rate kW
-        -> energy_kwh = charging_rate_kw * duration
+        -> energy_kwh = charging_power_kw * duration
+
+The rate in the UI is that same power: ``Charging Rate_kW x
+Charging_Duration_h`` equals ``Energy Supplied_kWh`` exactly in both CSVs, and
+``Charging Power_kW`` equals ``V x I / 1000`` to within 0.14 %, so the average
+rate of a session is its sustained power. Folding the second model out means
+one artifact load and one predict per request instead of two, and the energy
+figure no longer disagrees with the power figure beside it (it used to report
+8.78 kWh for both 250 V / 5 A and 400 V / 15 A over the same two hours).
 
 Artifacts are not loaded at import time: importing this module used to
 deserialise ~21 MB per worker before Django could serve a request, and a
@@ -36,7 +43,7 @@ from apps.monitoring.services import (
     log_reading,
 )
 from core.model_registry import ModelNotAvailable, registry
-from ml.pipeline.config import ENERGY_MODEL_NAME, POWER_MODEL_NAME
+from ml.pipeline.config import POWER_MODEL_NAME
 from ml.pipeline.data import calendar_values
 
 from .forms import PredictionForm
@@ -110,8 +117,6 @@ def predict_view(request):
     try:
         power_model, power_scaler = registry.get(POWER_MODEL_NAME)
         power_meta = registry.meta(POWER_MODEL_NAME)
-        energy_model, energy_scaler = registry.get(ENERGY_MODEL_NAME)
-        energy_meta = registry.meta(ENERGY_MODEL_NAME)
     except ModelNotAvailable as exc:
         messages.error(
             request,
@@ -127,7 +132,6 @@ def predict_view(request):
 
     models = {
         POWER_MODEL_NAME: _model_info(power_meta),
-        ENERGY_MODEL_NAME: _model_info(energy_meta),
     }
 
     predictions = []
@@ -175,7 +179,6 @@ def predict_view(request):
                         "Battery Temperature_C": battery_temp,
                         "State Of Charge_SoC": soc,
                         "Charging_Duration_h": duration,
-                        "Charging Power_kW": 0.0,  # overwritten after step 1
                         **calendar_values(timestamp),
                     }
 
@@ -189,13 +192,12 @@ def predict_view(request):
                         power_model.predict(power_scaler.transform(power_row))[0]
                     )
 
-                    # 2. energy model: power + battery state -> average rate (kW)
-                    inputs["Charging Power_kW"] = charging_power
-                    energy_row = _feature_frame(inputs, energy_meta["features"])
-                    charging_rate = float(
-                        energy_model.predict(energy_scaler.transform(energy_row))[0]
-                    )
-                    charging_rate = max(charging_rate, 0.0)
+                    # 2. the average charging rate *is* the sustained power.
+                    #    rate x duration equals Energy exactly, and P equals
+                    #    V*I/1000 to within 0.14 %, so once P is known the rate
+                    #    is known -- a second model would only re-derive it (see
+                    #    ml/pipeline/__init__.py for the measurements).
+                    charging_rate = max(charging_power, 0.0)
 
                     # 3. integrate the rate over the requested duration
                     predicted_energy_kwh = (

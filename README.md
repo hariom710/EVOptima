@@ -4,17 +4,17 @@
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-5.x-092E20?style=for-the-badge&logo=django&logoColor=white)
-![ML](https://img.shields.io/badge/ML-XGBoost_+_HistGB-FF6B35?style=for-the-badge&logo=scikitlearn&logoColor=white)
+![ML](https://img.shields.io/badge/ML-XGBoost-FF6B35?style=for-the-badge&logo=scikitlearn&logoColor=white)
 ![WebSockets](https://img.shields.io/badge/WebSockets-Django_Channels-00C896?style=for-the-badge&logo=socket.io&logoColor=white)
-![Tests](https://img.shields.io/badge/Tests-289_passing-22c55e?style=for-the-badge&logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/Tests-295_passing-22c55e?style=for-the-badge&logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)
 
 <br/>
 
 > A **real-time EV charging intelligence platform** that predicts charging power and
 > energy, monitors live charging parameters, detects faults instantly, and visualizes
-> system performance — powered by **Django Channels WebSockets** and a two-stage
-> **XGBoost + HistGradientBoosting** pipeline (blocked-CV **R² = 0.996 / 0.998**).
+> system performance — powered by **Django Channels WebSockets** and a leak-audited
+> **XGBoost** pipeline (blocked-CV **R² = 0.996**).
 
 <br/>
 
@@ -34,9 +34,9 @@
 <td>
 
 ### ⚡ Energy Prediction
-- **Two-model chain**: XGBoost predicts charging power, HistGB predicts the average charging rate
-- Energy derived as `rate × duration` — never predicted as a cumulative ramp
-- Blocked-CV **R² = 0.996** (power) / **0.998** (energy), measured chronologically
+- **XGBoost predicts charging power** from V, I, temperature, SoC and calendar features
+- Energy is **arithmetic, not inference**: `energy = power × duration` — and `power = V × I / 1000` to within 0.14 %, so both inputs are known at submit time. (`Energy` is exactly `rate × duration` and `∫P dt` to within 0.098 kWh per row.)
+- Blocked-CV **R² = 0.996**, measured chronologically and published per source
 - Full provenance shown in the UI: version, algorithm, target, R², latency
 
 </td>
@@ -96,7 +96,7 @@
 | **Frontend** | HTML5, CSS3, JavaScript, Bootstrap 5, Chart.js |
 | **Backend** | Python 3.10+ (verified on 3.13), Django 5.2, Django REST Framework |
 | **Real-Time** | Django Channels 4.x, WebSockets, Daphne (ASGI) |
-| **Machine Learning** | XGBoost, HistGradientBoosting, scikit-learn, Pandas, NumPy, Joblib |
+| **Machine Learning** | XGBoost, scikit-learn, Pandas, NumPy, Joblib |
 | **Database** | SQLite (dev) · PostgreSQL-ready (prod) |
 | **Quality** | pytest + pytest-django, coverage, ruff |
 
@@ -106,9 +106,8 @@
 
 ### How it works
 
-Two models are chained. The first turns the operator's electrical inputs into charging
-power; the second turns that power plus battery state into an average charging *rate*,
-which the view integrates over the requested duration:
+One model, then arithmetic. The operator's electrical inputs become charging power;
+energy, average rate and fault current all follow from it:
 
 ```
   Input                                  Model                       Output
@@ -118,27 +117,55 @@ which the view integrates over the requested duration:
 │ Battery Temperature │            │ R² = 0.996      │      └───────────┬─────────────┘
 │ State of Charge     │            └──────────────────┘                  │
 │ hour / dow / month  │                                                  ▼
-└─────────────────────┘            ┌──────────────────┐      ┌─────────────────────────┐
-                                   │ energy          │      │ rate (kW)               │
-                    power ───────► │ HistGB          │ ───► │                         │
-                    temp  ───────► │ R² = 0.998      │      │ energy = rate × duration│
-                    SoC   ───────► └──────────────────┘      └─────────────────────────┘
+└─────────────────────┘                          energy  = power × duration
+                                                  rate    = power
+                                                  I_fault = power × 1000 / V
+                                                            (operator's V, not 400 V)
 ```
+
+### Why there is no second model
+
+A HistGB model for the average charging rate **was** shipped first, and then removed,
+because it cannot be learned from this data. Three identities hold in the shipped
+CSVs, and each one removes a quantity a model could have claimed to learn:
+
+| identity | deviation |
+|---|---|
+| `Charging Power_kW = V × I / 1000` | **0.055 %** (d1), **0.136 %** (d2) |
+| `Charging Rate_kW × Charging_Duration_h = Energy Supplied_kWh` | **exactly 0.00000000 kWh** |
+| `Energy Supplied_kWh = ∫P dt` (per row, session clock reset) | **0.005 kWh** (d1), **0.098 kWh** (d2) |
+
+The second is decisive: the pipeline predicted `Charging Rate_kW` and multiplied it
+back by `Charging_Duration_h`, but those two columns *are* the target — **the duration
+cancels**. The published **+0.9977** therefore only ever asked *"can you predict
+`Energy / Duration`?"*, and that quantity is a near-constant while its driver is not:
+
+- **CV 2.55 % (d1) / 3.22 % (d2)** for `Energy / Duration`, against **43.88 % / 47.41 %**
+  for `Charging Power_kW`, with `corr(rate, power) = +0.035`. A 2.6 % signal cannot
+  carry a 44 % response.
+- A model fitted on it learns a *threshold*, not a response: it answered **4.392 kW or
+  21.668 kW and nothing in between**, and served **75.2 % mean absolute error** against
+  `power × duration` (251.3 % worst case) — *worse than a constant*, which
+  `constant_k_r2` scores at 0.9999 / 0.9994.
+- Meanwhile `power × duration` needs no model at all: power is pinned by `V × I` to
+  within 0.14 %, so both inputs are known the moment the operator presses submit.
+
+Dropping it also halved inference: one artifact load and one predict per request, and
+the kWh figure can no longer disagree with the power figure beside it.
 
 ### Performance
 
 | Model | Algorithm | Target | Blocked CV R² | Chronological 80/20 | Latency | Size |
 |---|---|---|---|---|---|---|
 | `power` | `XGBRegressor` | `Charging Power_kW` | **+0.9960** | +0.9960 / +0.9984 | 0.34 ms/row | 3.20 MB |
-| `energy` | `HistGradientBoostingRegressor` | `Charging Rate_kW` | **+0.9977** | +0.9968 / +0.9955 | 0.83 ms/row | 0.27 MB |
 
-Combined **1.21 ms/row and 3.47 MB** — roughly 7× faster and 6× smaller than the
-RandomForest artifact it replaced (9.0 ms/row, 21.9 MB), at the same accuracy.
+**0.34 ms/row and 3.20 MB** — roughly **26× faster and 7× smaller** than the
+RandomForest artifact it replaced (9.0 ms/row, 21.9 MB), at equivalent accuracy.
 
 | | Value |
 |---|---|
 | **Validation** | Chronological 80/20 holdout **+** `TimeSeriesSplit(5)` blocked CV, run within each source |
-| **Serialization** | `ml/artifacts/{power,energy}-v1/{model,scaler}.joblib` + `meta.json` |
+| **Serialization** | `ml/artifacts/power-v1/{model,scaler}.joblib` + `meta.json` |
 | **Feature order** | Recorded in `meta.json`, asserted by the loader at load time |
 | **Provenance** | Version, algorithm, target, both R² figures, latency, size and training time shown on `/prediction/` |
 
@@ -154,7 +181,7 @@ The argument is reproduced end-to-end in
 (~160 s), which imports the same `ml/pipeline/` package the Django view serves from.
 
 ```bash
-python scripts/train_models.py            # leakage audit + both models + report
+python scripts/train_models.py            # leakage audit + model + report
 python scripts/train_models.py --report   # print the audit only
 python scripts/train_models.py --only power
 ```
@@ -188,10 +215,10 @@ uses `I = P × 1000 / V` with **the operator's stated voltage**, not a nominal 4
 │  DJANGO APPLICATION LAYER                                        │
 │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐  │
 │  │ accounts   │  │ monitoring │  │ prediction │  │visualization│ │
-│  │ auth views │  │ dashboards │  │ two-model  │  │ analytics  │  │
-│  │ registers  │  │ consumers  │  │ chain +    │  │ charts     │  │
-│  │            │  │ services/  │  │ provenance │  │            │  │
-│  │            │  │ thresholds │  │            │  │            │  │
+│  │ auth views │  │ dashboards │  │ prediction │  │ analytics  │  │
+│  │ registers  │  │ consumers  │  │ inference  │  │ charts     │  │
+│  │            │  │ services/  │  │ + OOD guard│  │            │  │
+│  │            │  │ thresholds │  │ provenance │  │            │  │
 │  └────────────┘  └────────────┘  └─────┬──────┘  └────────────┘  │
 │                                        │ core.model_registry     │
 │                                        │ ml.pipeline (contracts) │
@@ -202,7 +229,7 @@ uses `I = P × 1000 / V` with **the operator's stated voltage**, not a nominal 4
 │  Thresholds · Reading · EventLog · SimulationControl · User       │
 │                                                                  │
 │  ML ARTIFACTS (committed)       ml/artifacts/                    │
-│  power-v1 · energy-v1 · current.json · meta.json · audit JSON    │
+│  power-v1 · current.json · meta.json · audit JSON                     │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -228,7 +255,7 @@ EVOptima/
 │   │   ├── consumers.py         ← /ws/monitoring/
 │   │   ├── routing.py
 │   │   └── services/            ← thresholds, faults, simulation, sources
-│   ├── prediction/              ← the two-model inference view
+│   ├── prediction/              ← inference view, OOD guard, provenance
 │   │   ├── forms.py             ← V, I, temp, SoC, duration, timestamp
 │   │   └── views.py
 │   └── visualization/           ← analytics charts
@@ -239,12 +266,12 @@ EVOptima/
 ├── ml/
 │   ├── pipeline/                ← config (feature contracts), data, evaluate,
 │   │                              audit, train — shared by training & serving
-│   ├── artifacts/               ← trained models (committed, ~3.7 MB)
+│   ├── artifacts/               ← trained model (committed, ~6.4 MB)
 │   └── notebooks/
 │       └── ev_charging_prediction.ipynb
 │
 ├── scripts/
-│   ├── train_models.py          ← retrain + export both models
+│   ├── train_models.py          ← retrain + export the model
 │   ├── seed_db.py               ← demo readings/events
 │   ├── run_sim (manage command) ← simulator
 │   └── gate_*.py                ← smoke gates
@@ -253,7 +280,7 @@ EVOptima/
 │   ├── base.txt · dev.txt · prod.txt
 │
 ├── templates/ · static/         ← project-level templates and assets
-├── tests/                       ← 289 tests
+├── tests/                       ← 295 tests
 ├── docs/
 │   ├── ml-findings.md           ← the ML diagnosis
 │   └── migration-notes.md
@@ -301,11 +328,11 @@ pip install -r requirements/dev.txt      # includes base.txt + pytest, ruff, not
 python manage.py migrate
 ```
 
-**5. Models come pre-trained** — `ml/artifacts/` ships `power-v1` (XGBoost) and
-`energy-v1` (HistGB) already trained, and `data/raw/` ships the two training CSVs,
-so `/prediction/` works immediately after step 4. Retraining is optional:
+**5. The model comes pre-trained** — `ml/artifacts/` ships `power-v1` (XGBoost) already
+trained, and `data/raw/` ships the two training CSVs, so `/prediction/` works
+immediately after step 4. Retraining is optional:
 ```bash
-python scripts/train_models.py    # re-runs the leakage audit and rewrites both models
+python scripts/train_models.py    # re-runs the leakage audit and rewrites the model
 ```
 
 **6. Optional: seed demo readings and events**
@@ -336,7 +363,7 @@ http://127.0.0.1:8000/
 
 ```bash
 python -m ruff check .        # lint
-python -m pytest              # 289 tests
+python -m pytest              # 295 tests
 python -m pytest --cov        # with coverage
 python manage.py check        # Django system checks
 ```
@@ -389,7 +416,7 @@ python scripts/gate_phase3.py
 |---|---|---|
 | **accounts** | Login, registration, logout | Django auth |
 | **monitoring** | Dashboards, WebSocket consumer, thresholds, fault rules, simulator | Django Channels + services |
-| **prediction** | Two-model inference, OOD guard, provenance card, DC-bus allocation | Registry + `ml.pipeline` |
+| **prediction** | Inference, OOD guard, provenance card, DC-bus allocation | Registry + `ml.pipeline` |
 | **visualization** | Historical analytics and Chart.js charts | Django + DRF |
 | **core** | Lazy, thread-safe artifact loading with remembered failures | Singleton + lock |
 | **ml/pipeline** | Feature contracts, training, honest evaluation, leakage audit | Shared by notebook and view |

@@ -1,19 +1,18 @@
-"""Train and export the prediction models.
+"""Train and export the prediction model.
 
 Runs the full protocol -- leakage audit, chronological holdout, blocked
 cross-validation -- and writes versioned artifacts plus ``meta.json``:
 
     ml/artifacts/
         current.json                      active version per model
-        model.joblib / scaler.joblib      legacy alias (= active energy model)
+        model.joblib / scaler.joblib      legacy alias (= active power model)
         power-vN/{model,scaler}.joblib + meta.json
-        energy-vN/{model,scaler}.joblib + meta.json
         leakage_audit.json                the audit that justified the features
 
 Usage::
 
-    python scripts/train_models.py                 # train both models
-    python scripts/train_models.py --only power    # retrain one model
+    python scripts/train_models.py                 # train the model
+    python scripts/train_models.py --only power    # same, explicitly
     python scripts/train_models.py --no-audit      # skip the leakage audit
     python scripts/train_models.py --report        # print the audit and exit
 """
@@ -36,9 +35,7 @@ django.setup()
 
 from ml.pipeline import audit as audit_module  # noqa: E402
 from ml.pipeline.config import (  # noqa: E402
-    ENERGY_FEATURES,
-    ENERGY_MODEL_NAME,
-    ENERGY_TARGET,
+    ENERGY_DERIVED,
     POWER_FEATURES,
     POWER_MODEL_NAME,
     POWER_TARGET,
@@ -52,8 +49,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--only",
-        choices=[POWER_MODEL_NAME, ENERGY_MODEL_NAME],
-        help="train a single model instead of both",
+        choices=[POWER_MODEL_NAME],
+        help="train a single named model",
     )
     parser.add_argument(
         "--no-audit",
@@ -82,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
           + ", ".join(f"{k}={len(v)}" for k, v in datasets.items()))
     print(f"Artifacts -> {export_root()}\n")
 
-    names = (args.only,) if args.only else (POWER_MODEL_NAME, ENERGY_MODEL_NAME)
+    names = (args.only,) if args.only else (POWER_MODEL_NAME,)
     results = train_all(datasets, names=names, include_audit=not args.no_audit)
 
     print(summarise(results))
@@ -124,10 +121,8 @@ def _serving_summary(results: dict) -> str:
             lines.append(f"    range {feature:26} [{lo}, {hi}]")
     lines.append("")
     lines.append("Power target : " + POWER_TARGET)
-    lines.append("Energy target: " + ENERGY_TARGET
-                 + " (model emits the rate; the view multiplies by duration)")
-    lines.append(f"Power features : {', '.join(POWER_FEATURES)}")
-    lines.append(f"Energy features: {', '.join(ENERGY_FEATURES)}")
+    lines.append("Energy       : " + ENERGY_DERIVED + "   (exact, not learned)")
+    lines.append(f"Power features: {', '.join(POWER_FEATURES)}")
     return "\n".join(lines)
 
 
@@ -135,9 +130,9 @@ def _shipping_note(results: dict) -> str:
     """Warn when a freshly trained version is not committed to git.
 
     ``.gitignore`` ignores ``ml/artifacts/*-v[0-9]*`` so a retrain does not add
-    ~3.5 MB to the repo, while ``!`` rules keep the shipped ``power-v1`` /
-    ``energy-v1`` tracked. Promoting a new version is therefore a two-step move,
-    and doing only the ``current.json`` half silently re-breaks a fresh clone:
+    ~3.5 MB to the repo, while a ``!`` rule keeps the shipped ``power-v1``
+    tracked. Promoting a new version is therefore a two-step move, and doing
+    only the ``current.json`` half silently re-breaks a fresh clone:
     the pointer would name a directory git never received.
     """
     lines: list[str] = []

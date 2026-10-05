@@ -1,18 +1,21 @@
-"""Train, evaluate and export the two shipped models.
+"""Train, evaluate and export the shipped model.
 
 Layout written to ``settings.MODEL_DIR``::
 
-    current.json                    {"power": "power-v3", "energy": "energy-v1"}
-    model.joblib / scaler.joblib    legacy alias == the active energy model,
+    current.json                    {"power": "power-v1"}
+    model.joblib / scaler.joblib    legacy alias == the active power model,
                                     so ``registry.get()`` keeps working
-    power-v3/{model,scaler}.joblib + meta.json
-    energy-v1/{model,scaler}.joblib + meta.json
+    power-v1/{model,scaler}.joblib + meta.json
 
 Every version directory is self-describing: ``meta.json`` carries the feature
 order, the input ranges the serving layer validates against, the evaluation
 metrics for *both* protocols, and the training provenance. The loader asserts
 the feature order at load time, so a retrained model cannot silently be fed
 columns in a different order.
+
+Only one model is trained. See ``ml.pipeline.config`` for why a second one
+cannot be learned from these CSVs; the audit that proves it still runs on every
+train and ships as ``leakage_audit.json``.
 """
 from __future__ import annotations
 
@@ -31,17 +34,17 @@ from ml.pipeline.config import (
     CHRONOLOGICAL_HOLDOUT,
     CURRENT_FILENAME,
     DEFAULT_MODEL_NAME,
-    ENERGY_MODEL_NAME,
-    ENERGY_TARGET,
+    ENERGY_FEATURES,
     META_FILENAME,
     MODEL_FILENAME,
     POWER_MODEL_NAME,
     PROTOCOL,
     SCALER_FILENAME,
     SPECS,
+    energy_estimator,
 )
 from ml.pipeline.data import combined, load_datasets
-from ml.pipeline.evaluate import integrate_energy, per_source_report
+from ml.pipeline.evaluate import per_source_report
 
 
 # --------------------------------------------------------------------- train
@@ -72,16 +75,11 @@ def train_one(
     model = spec["estimator"]()
     model.fit(values, y[mask])
 
-    metric_target = ENERGY_TARGET if name == ENERGY_MODEL_NAME else target
-    integrate = integrate_energy if name == ENERGY_MODEL_NAME else None
-
     metrics = per_source_report(
         datasets,
         features,
         target,
         spec["estimator"],
-        metric_target=metric_target if integrate else None,
-        integrate=integrate,
         scaler_factory=StandardScaler,
     )
 
@@ -89,7 +87,7 @@ def train_one(
         "name": name,
         "algorithm": spec["algorithm"],
         "target": target,
-        "metric_target": metric_target if integrate else target,
+        "metric_target": target,
         "features": features,
         "output": spec["output"],
         "derived": spec["derived"],
@@ -118,20 +116,21 @@ def train_one(
 def train_all(
     datasets: dict | None = None,
     *,
-    names: tuple[str, ...] = (POWER_MODEL_NAME, ENERGY_MODEL_NAME),
+    names: tuple[str, ...] = (POWER_MODEL_NAME,),
     include_audit: bool = True,
 ) -> dict[str, dict]:
     """Train each model in ``names``, export it, and return their metadata."""
     datasets = datasets if datasets is not None else load_datasets()
 
     # The audit runs first so its filename can be recorded in every meta.json
-    # before those are written -- it justifies the feature lists below.
+    # before those are written -- it justifies the feature lists below, and it
+    # is what documents why no second model is trained here.
     report = None
     if include_audit:
         report = audit_module.audit(
             datasets,
-            energy_features=SPECS[ENERGY_MODEL_NAME]["features"],
-            energy_estimator=SPECS[ENERGY_MODEL_NAME]["estimator"],
+            energy_features=ENERGY_FEATURES,
+            energy_estimator=energy_estimator,
             power_features=SPECS[POWER_MODEL_NAME]["features"],
             power_estimator=SPECS[POWER_MODEL_NAME]["estimator"],
         )
@@ -201,6 +200,13 @@ def _export(name: str, model, scaler, meta: dict, root: Path | None = None) -> s
 
 
 def _write_current(results: dict[str, dict], root: Path) -> None:
+    """Point ``current.json`` at the freshly trained versions.
+
+    Existing entries are kept so retraining one model does not unset the other,
+    but an entry is *dropped* when the directory it names is gone. Without that
+    prune, retiring a model leaves ``current.json`` naming a version git never
+    shipped -- the loader then fails on a clone that was working a commit ago.
+    """
     pointers: dict[str, str] = {}
     path = root / CURRENT_FILENAME
     if path.is_file():
@@ -210,6 +216,13 @@ def _write_current(results: dict[str, dict], root: Path) -> None:
             pointers = {}
     for name, meta in results.items():
         pointers[name] = meta["version"]
+    dangling = [
+        name
+        for name, version in pointers.items()
+        if not (root / str(version)).is_dir()
+    ]
+    for name in dangling:
+        del pointers[name]
     path.write_text(json.dumps(pointers, indent=2, sort_keys=True), encoding="utf-8")
 
 

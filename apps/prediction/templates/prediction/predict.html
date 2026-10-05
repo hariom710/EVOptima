@@ -63,8 +63,7 @@
                             <h4>Prediction Results:</h4>
                             <ul class="list-unstyled">
                                 <li>Predicted Power: <strong>{{ prediction.charging_power|floatformat:2 }} kW</strong> <small class="text-muted">(XGBoost)</small></li>
-                                <li>Avg Charging Rate: <strong>{{ prediction.charging_rate|floatformat:2 }} kW</strong> <small class="text-muted">(HistGB)</small></li>
-                                <li>Energy Consumption: <strong>{{ prediction.predicted_value|floatformat:2 }} kWh</strong></li>
+                                <li>Energy Consumption: <strong>{{ prediction.predicted_value|floatformat:2 }} kWh</strong> <small class="text-muted">(power &times; {{ prediction.duration|floatformat:1 }} h)</small></li>
                                 <li>Battery Temperature: <strong>{{ prediction.battery_temp|floatformat:1 }}°C</strong></li>
                                 <li>State of Charge: <strong>{{ prediction.soc|floatformat:1 }}%</strong></li>
                                 <li>Duration: <strong>{{ prediction.duration|floatformat:1 }} hours</strong></li>
@@ -101,7 +100,7 @@
                 <div class="card-body">
                     <div class="row">
                         {% for name, model in models.items %}
-                        <div class="col-md-6">
+                        <div class="col-md-8">
                             <h4 class="text-capitalize">{{ name }} <small class="text-muted">({{ model.algorithm }})</small></h4>
                             <table class="table table-sm">
                                 <tbody>
