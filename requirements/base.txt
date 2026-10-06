@@ -33,6 +33,13 @@ pandas==2.2.3
 numpy==2.2.1
 joblib==1.4.2
 
+# Linear-programming solver: optimization/solver.py imports
+# scipy.optimize.linprog (HiGHS) directly to run the Smart Charging Scheduler.
+# scikit-learn happens to pull scipy in transitively, but a first-class feature
+# must not hang off another package's dependency list -- that is the same
+# failure mode the xgboost note above documents.
+scipy==1.15.1
+
 # .env loading (config/settings/base.py reads the repo-root .env if present;
 # real environment variables always take precedence).
 python-dotenv==1.0.0

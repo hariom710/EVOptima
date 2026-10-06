@@ -4,12 +4,17 @@ Connects to ``ws://<host>/ws/monitoring/`` through the same ProtocolTypeRouter
 + AuthMiddlewareStack stack the browser uses, then verifies the consumer
 accepts the connection and pushes its initial ``status_update`` payload.
 
+The connection presents an ``Origin`` header derived from the URL, exactly as
+a browser would: config/asgi.py wraps the stack in
+AllowedHostsOriginValidator, which denies handshakes with no Origin at all.
+
 Usage:
     python scripts/gate_ws.py ws://127.0.0.1:8023/ws/monitoring/
 """
 import asyncio
 import json
 import sys
+from urllib.parse import urlsplit
 
 import websockets
 
@@ -17,10 +22,20 @@ WS_URL = sys.argv[1] if len(sys.argv) > 1 else "ws://127.0.0.1:8023/ws/monitorin
 TIMEOUT = 10.0
 
 
+def browser_origin(url: str) -> str:
+    """``ws://host:port/path`` -> ``http://host:port`` (the browser's Origin)."""
+    parts = urlsplit(url)
+    scheme = {"ws": "http", "wss": "https"}.get(parts.scheme, parts.scheme)
+    return f"{scheme}://{parts.netloc}"
+
+
 async def main() -> int:
-    print(f"connecting: {WS_URL}")
+    origin = browser_origin(WS_URL)
+    print(f"connecting: {WS_URL} (origin: {origin})")
     try:
-        async with websockets.connect(WS_URL, open_timeout=TIMEOUT) as ws:
+        async with websockets.connect(
+            WS_URL, origin=origin, open_timeout=TIMEOUT
+        ) as ws:
             print("  connected (HTTP 101 -> websocket upgrade OK)")
 
             raw = await asyncio.wait_for(ws.recv(), timeout=TIMEOUT)
