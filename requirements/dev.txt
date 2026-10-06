@@ -6,6 +6,9 @@
 pytest==9.0.2
 pytest-django==4.14.0
 coverage==7.16.1
+# Plugin for the `python -m pytest --cov` command the README advertises.
+# coverage alone is not enough -- without this pytest rejects --cov outright.
+pytest-cov==7.1.0
 
 # --- lint / format ---
 ruff==0.15.17

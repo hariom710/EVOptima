@@ -6,7 +6,7 @@
 ![Django](https://img.shields.io/badge/Django-5.x-092E20?style=for-the-badge&logo=django&logoColor=white)
 ![ML](https://img.shields.io/badge/ML-XGBoost-FF6B35?style=for-the-badge&logo=scikitlearn&logoColor=white)
 ![WebSockets](https://img.shields.io/badge/WebSockets-Django_Channels-00C896?style=for-the-badge&logo=socket.io&logoColor=white)
-![Tests](https://img.shields.io/badge/Tests-295_passing-22c55e?style=for-the-badge&logo=pytest&logoColor=white)
+![Tests](https://img.shields.io/badge/Tests-387_passing-22c55e?style=for-the-badge&logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)
 
 <br/>
@@ -38,6 +38,7 @@
 - Energy is **arithmetic, not inference**: `energy = power × duration` — and `power = V × I / 1000` to within 0.14 %, so both inputs are known at submit time. (`Energy` is exactly `rate × duration` and `∫P dt` to within 0.098 kWh per row.)
 - Blocked-CV **R² = 0.996**, measured chronologically and published per source
 - Full provenance shown in the UI: version, algorithm, target, R², latency
+- **Every prediction explains itself**: exact TreeSHAP over the seven inputs, printed as `bias + contributions = answer` with the residual it leaves
 
 </td>
 <td>
@@ -180,6 +181,7 @@ RandomForest artifact it replaced (9.0 ms/row, 21.9 MB), at equivalent accuracy.
 | **Serialization** | `ml/artifacts/power-v1/{model,scaler}.joblib` + `meta.json` |
 | **Feature order** | Recorded in `meta.json`, asserted by the loader at load time |
 | **Provenance** | Version, algorithm, target, both R² figures, latency, size and training time shown on `/prediction/` |
+| **Explanation** | Exact TreeSHAP per input beside each prediction: the model's bias, every contribution in kW, and the residual those contributions leave (≤ 5.1e-05 kW measured) |
 
 > **Why not one number?** The two supplied datasets are different operating regimes a
 > month apart. Pooled cross-validation scores **0.71** because one fold straddles that
@@ -287,7 +289,7 @@ EVOptima/
 │
 ├── ml/
 │   ├── pipeline/                ← config (feature contracts), data, evaluate,
-│   │                              audit, train — shared by training & serving
+│   │                              audit, train, explain — shared by training & serving
 │   ├── artifacts/               ← trained model (committed, ~6.4 MB)
 │   └── notebooks/
 │       └── ev_charging_prediction.ipynb
@@ -302,7 +304,7 @@ EVOptima/
 │   ├── base.txt · dev.txt · prod.txt
 │
 ├── templates/ · static/         ← project-level templates and assets
-├── tests/                       ← 360 tests
+├── tests/                       ← 387 tests
 ├── docs/
 │   ├── ml-findings.md           ← the ML diagnosis
 │   └── migration-notes.md
@@ -385,7 +387,7 @@ http://127.0.0.1:8000/
 
 ```bash
 python -m ruff check .        # lint
-python -m pytest              # 360 tests
+python -m pytest              # 387 tests
 python -m pytest --cov        # with coverage
 python manage.py check        # Django system checks
 ```
@@ -408,7 +410,7 @@ python scripts/gate_phase3.py
 |---|---|---|
 | `GET` | `/` | Root redirect → `/home/` |
 | `GET` | `/home/` | Status homepage + recent events |
-| `GET` | `/prediction/` | Three-port prediction form + model provenance |
+| `GET` | `/prediction/` | Three-port prediction form, per-input explanation and model provenance |
 | `GET` | `/prediction/welcome/` | Prediction intro |
 | `GET` | `/scheduling/` | Greedy vs optimised charge plan · `?capacity=` · `?peak_weight=` |
 | `GET` | `/visualization/` | Analytics charts |
@@ -439,11 +441,11 @@ python scripts/gate_phase3.py
 |---|---|---|
 | **accounts** | Login, registration, logout | Django auth |
 | **monitoring** | Dashboards, WebSocket consumer, thresholds, fault rules, simulator | Django Channels + services |
-| **prediction** | Inference, OOD guard, provenance card, DC-bus allocation | Registry + `ml.pipeline` |
+| **prediction** | Inference, OOD guard, per-input explanation, provenance card, DC-bus allocation | Registry + `ml.pipeline` |
 | **scheduling** | `/scheduling/` comparison page and demo fleet | Thin view over `optimization` |
 | **visualization** | Historical analytics and Chart.js charts | Django + DRF |
 | **core** | Lazy, thread-safe artifact loading with remembered failures; shared site constants | Singleton + lock |
-| **ml/pipeline** | Feature contracts, training, honest evaluation, leakage audit | Shared by notebook and view |
+| **ml/pipeline** | Feature contracts, training, honest evaluation, leakage audit, TreeSHAP attribution | Shared by notebook and view |
 | **optimization** | Charge scheduling: LP solver, tariff, greedy baseline | Pure functions, no Django |
 
 ---

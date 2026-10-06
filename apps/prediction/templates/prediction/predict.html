@@ -74,6 +74,65 @@
                             {% if prediction.fault_detected %}
                             <div class="badge bg-danger">Port simulation stopped due to fault</div>
                             {% endif %}
+
+                            {% if prediction.ood_notes %}
+                            <div class="alert alert-warning py-2 mt-3 mb-0">
+                                <small><i class="bi bi-exclamation-circle"></i>
+                                    <strong>Outside trained range:</strong>
+                                    {{ prediction.ood_notes|join:", " }} &mdash;
+                                    this prediction is an extrapolation.
+                                </small>
+                            </div>
+                            {% endif %}
+
+                            {% if prediction.explanation %}
+                            <div class="border-top mt-3 pt-2">
+                                <h5 class="mb-1">Why {{ prediction.explanation.predicted_kw|floatformat:2 }} kW?</h5>
+                                <p class="mb-1">
+                                    <small class="text-muted">
+                                        The model's average answer is
+                                        <strong>{{ prediction.explanation.bias_kw|floatformat:2 }} kW</strong>;
+                                        these inputs move it
+                                        <span class="text-success">up (+)</span> or
+                                        <span class="text-danger">down (&minus;)</span>.
+                                    </small>
+                                </p>
+                                <table class="table table-sm mb-1">
+                                    <thead>
+                                        <tr>
+                                            <th><small>Input</small></th>
+                                            <th><small>Value</small></th>
+                                            <th style="width: 34%;"></th>
+                                            <th class="text-end"><small>kW</small></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for c in prediction.explanation.contributions %}
+                                        <tr>
+                                            <td><small>{{ c.feature }}</small></td>
+                                            <td class="text-nowrap"><small>{{ c.raw_value|floatformat:1 }}</small></td>
+                                            <td>
+                                                <div class="rounded bg-{% if c.pushes_up %}success{% else %}danger{% endif %}"
+                                                     style="height: 8px; width: {{ c.bar_pct }}%;"></div>
+                                            </td>
+                                            <td class="text-end text-nowrap {% if c.pushes_up %}text-success{% else %}text-danger{% endif %}">
+                                                <small>{{ c.kw|floatformat:2 }}</small>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                                <p class="mb-1"><small class="text-muted">
+                                    {{ prediction.explanation.bias_kw|floatformat:2 }} + contributions =
+                                    {{ prediction.explanation.reconstructed_kw|floatformat:2 }} kW,
+                                    served {{ prediction.explanation.predicted_kw|floatformat:2 }} kW
+                                    (residual {{ prediction.explanation.residual_kw|floatformat:4 }} kW)
+                                </small></p>
+                                <p class="mb-0"><small class="text-muted">
+                                    Charging duration is not an input here: energy = power &times; duration.
+                                </small></p>
+                            </div>
+                            {% endif %}
                         </div>
                         {% endwith %}
                         {% endif %}

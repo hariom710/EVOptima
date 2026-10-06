@@ -46,6 +46,7 @@ from core.model_registry import ModelNotAvailable, registry
 from core.site import TOTAL_POWER_KW
 from ml.pipeline.config import POWER_MODEL_NAME
 from ml.pipeline.data import calendar_values
+from ml.pipeline.explain import ExplanationNotSupported, explain_power
 
 from .forms import PredictionForm
 
@@ -136,6 +137,7 @@ def predict_view(request):
     forms = []
     remaining_power = TOTAL_POWER_KW
     ood_notes = []
+    unexplained = []
 
     if request.method == "POST":
         valid_forms = []
@@ -155,6 +157,12 @@ def predict_view(request):
             current = form.cleaned_data["current"]
 
             try:
+                # Per-port copy of the out-of-range check. `ood_notes` below is
+                # the once-per-submit log entry; this one is what the card
+                # shows, so a stray column is flagged beside the prediction it
+                # actually affects.
+                port_ood: list = []
+
                 # Check if both SOC and battery temperature are zero: no vehicle
                 # is connected, so there is nothing to predict and nothing to
                 # measure. `predicted_values` stays None so the reading below is
@@ -170,6 +178,11 @@ def predict_view(request):
                     predicted_temp = 0.0
                     is_fault = False
                     fault_message = None
+                    # Nothing to attribute: the 0 kW above is the view's own
+                    # "no vehicle connected" decision, not a model output, and
+                    # explaining it would invent a reasoning the model never
+                    # produced.
+                    explanation = None
                 else:
                     inputs = {
                         "Charging Voltage_V": voltage,
@@ -180,15 +193,36 @@ def predict_view(request):
                         **calendar_values(timestamp),
                     }
 
-                    ood_notes.extend(
-                        _out_of_range(inputs, power_meta.get("input_ranges", {}))
+                    port_ood = _out_of_range(
+                        inputs, power_meta.get("input_ranges", {})
                     )
+                    ood_notes.extend(port_ood)
 
                     # 1. power model: electrical inputs -> charging power (kW)
                     power_row = _feature_frame(inputs, power_meta["features"])
-                    charging_power = float(
-                        power_model.predict(power_scaler.transform(power_row))[0]
-                    )
+                    scaled_row = power_scaler.transform(power_row)
+                    charging_power = float(power_model.predict(scaled_row)[0])
+
+                    # 1b. attribute that same number across the inputs that
+                    #     produced it. The transformed row is reused rather
+                    #     than rebuilt, so the explanation is provably of the
+                    #     prediction just made -- not of a second pass over a
+                    #     row that happens to look similar.
+                    try:
+                        explanation = explain_power(
+                            model=power_model,
+                            scaled_row=scaled_row,
+                            feature_names=power_meta["features"],
+                            raw_inputs=inputs,
+                            predicted_kw=charging_power,
+                        )
+                    except ExplanationNotSupported as exc:
+                        # Not a prediction failure and not a silent gap: the
+                        # reason the block is missing is recorded once per
+                        # submit (three ports would otherwise say it three
+                        # times) and the prediction itself stands.
+                        unexplained.append(str(exc))
+                        explanation = None
 
                     # 2. the average charging rate *is* the sustained power.
                     #    rate x duration equals Energy exactly, and P equals
@@ -264,6 +298,8 @@ def predict_view(request):
                     "index": idx,
                     "charging_power": charging_power,
                     "charging_rate": charging_rate,
+                    "explanation": explanation,
+                    "ood_notes": port_ood,
                     "battery_temp": battery_temp,
                     "soc": soc,
                     "duration": duration,
@@ -296,6 +332,13 @@ def predict_view(request):
             "INFO",
             "Input outside training distribution: " + "; ".join(unique),
             "Prediction proceeded; treat the result as an extrapolation",
+        )
+
+    if unexplained:
+        log_event(
+            "INFO",
+            "No per-feature attribution: " + "; ".join(dict.fromkeys(unexplained)),
+            "Breakdown omitted; the prediction itself is unaffected",
         )
 
     return render(

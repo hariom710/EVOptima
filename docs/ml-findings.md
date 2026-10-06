@@ -311,7 +311,8 @@ form (V, I, temp, SoC, duration, timestamp)
   input raises rather than defaulting to 0.
 * Input outside the recorded training range logs one `INFO` event per submit —
   `Input outside training distribution: hour=12 outside trained range [0, 7]; ...` —
-  and the prediction proceeds, flagged as an extrapolation.
+  and the prediction proceeds, flagged as an extrapolation, now beside the
+  prediction on the page as well (see *Explainability* below).
 * Missing or unreadable artifacts degrade to a message plus a `PREDICTION_ERROR`
   event, never a 500 or a startup traceback.
 
@@ -319,6 +320,70 @@ Verified by `tests/test_ml_pipeline.py` against the shipped artifact:
 feature order, both protocols, accuracy and size/latency budgets, the feature-frame
 guard, the OOD guard, the serving chain (including that energy scales monotonically
 with the operator's current), and the per-index prediction dict.
+
+---
+
+## Explainability
+
+`ml/pipeline/explain.py` attributes a served prediction across the seven inputs that
+produced it, so `/prediction/` can show the arithmetic instead of asking to be
+trusted. The method is exact TreeSHAP and it ships inside XGBoost — **no `shap`
+package, no new dependency**. `XGBRegressor.predict()` cannot expose it (xgboost 3.0
+takes only `output_margin` / `validate_features` / `iteration_range`), so the call
+goes through the booster:
+
+```python
+contribs = model.get_booster().predict(
+    DMatrix(X, feature_names=features), pred_contribs=True
+)   # -> [bias, shap_1 ... shap_n]
+```
+
+For `reg:squarederror` there is no link function in between, so every value below is
+already in kW.
+
+### The identity
+
+```
+bias + sum(contributions) = served prediction
+```
+
+Measured on the shipped artifact — an in-range, a shifted and an out-of-range row:
+
+| row | prediction | bias | residual |
+|---|---|---|---|
+| in-range (400 V / 32.5 A) | 7.70 kW | 21.6280 | 1.8e-06 |
+| shifted (80 A, 30 % SoC) | 27.20 kW | 21.6280 | 5.1e-06 |
+| out-of-range (750 V / 160 A, hour 12) | 47.49 kW | 21.6280 | 5.1e-05 |
+
+`predicted_kw` is taken from the caller rather than recomputed, so the residual checks
+the number already shown to the operator instead of comparing a value with itself.
+`tests/test_explain.py` bounds it at 1e-03 kW — four orders of magnitude above what
+occurs, and four below the 0.01 kW the page prints.
+
+**The bias is a property of the model, not of the row**: 21.6280 kW on all three,
+within 0.006 kW of the mean of `Charging Power_kW` over the 12,093 training rows
+(21.6224). Restating that as *prior + contributions = answer* is exactly what the page
+prints.
+
+**Voltage and current carry 71–87 % of the attribution**, which a `V × I` target must;
+the test pins a floor of 0.50 so a model that stopped responding to its own inputs
+fails loudly.
+
+### What is deliberately not explained
+
+* **Energy.** `Charging_Duration_h` is not a model input — energy is
+  `power * duration` arithmetic — so the page says so instead of letting an absent
+  row look like an omission.
+* **An out-of-distribution row is not excused.** The OOD warning used to reach only
+  the event log; the page now flags it beside the prediction:
+  `Outside trained range: hour=12 ... — this prediction is an extrapolation.`
+  An extrapolation explained is not an extrapolation validated.
+* **The zero-input branch.** With no vehicle connected the view's `0 kW` is its own
+  decision, not a model output, so nothing is attributed to it — a breakdown there
+  would be fiction.
+
+Cost: 8–14 ms per row against 0.6–1.5 ms for the prediction, paid once per port on
+submit (a three-port submit measured 69 ms end to end).
 
 ---
 
