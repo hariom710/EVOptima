@@ -100,20 +100,35 @@
                                 <table class="table table-sm mb-1">
                                     <thead>
                                         <tr>
+                                            {# Three columns, not four: at Bootstrap's #}
+                                            {# col-md-4 floor (~230 px of card) a      #}
+                                            {# separate Value column pushed the table  #}
+                                            {# 37 px outside its own card. The value   #}
+                                            {# now sits under the feature it belongs   #}
+                                            {# to, which also keeps the two together   #}
+                                            {# when a long name wraps.                 #}
                                             <th><small>Input</small></th>
-                                            <th><small>Value</small></th>
-                                            <th style="width: 34%;"></th>
+                                            <th></th>
                                             <th class="text-end"><small>kW</small></th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for c in prediction.explanation.contributions %}
                                         <tr>
-                                            <td><small>{{ c.feature }}</small></td>
-                                            <td class="text-nowrap"><small>{{ c.raw_value|floatformat:1 }}</small></td>
                                             <td>
-                                                <div class="rounded bg-{% if c.pushes_up %}success{% else %}danger{% endif %}"
-                                                     style="height: 8px; width: {{ c.bar_pct }}%;"></div>
+                                                <small>{{ c.feature }}</small>
+                                                <div class="text-muted"><small>{{ c.raw_value|floatformat:1 }}</small></div>
+                                            </td>
+                                            <td>
+                                                {# The bar column carries no text of its own, so #}
+                                                {# auto table layout gives it ~8px and every bar #}
+                                                {# renders 0px wide. This track supplies the     #}
+                                                {# column's min-content width -- and is also     #}
+                                                {# what keeps every bar on one scale.            #}
+                                                <div style="min-width: 44px; height: 8px;">
+                                                    <div class="rounded bg-{% if c.pushes_up %}success{% else %}danger{% endif %}"
+                                                         style="height: 8px; width: {{ c.bar_pct }}%;"></div>
+                                                </div>
                                             </td>
                                             <td class="text-end text-nowrap {% if c.pushes_up %}text-success{% else %}text-danger{% endif %}">
                                                 <small>{{ c.kw|floatformat:2 }}</small>
