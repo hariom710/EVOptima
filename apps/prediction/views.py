@@ -43,13 +43,11 @@ from apps.monitoring.services import (
     log_reading,
 )
 from core.model_registry import ModelNotAvailable, registry
+from core.site import TOTAL_POWER_KW
 from ml.pipeline.config import POWER_MODEL_NAME
 from ml.pipeline.data import calendar_values
 
 from .forms import PredictionForm
-
-#: Main DC bus budget in kW, for the allocation visualisation.
-TOTAL_POWER_KW = 100.0
 
 
 def _feature_frame(inputs: dict, features: list) -> pd.DataFrame:

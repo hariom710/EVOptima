@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.monitoring",
     "apps.prediction",
+    "apps.scheduling",
     "apps.visualization",
 ]
 

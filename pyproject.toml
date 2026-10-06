@@ -62,7 +62,7 @@ addopts = "-ra --strict-markers --tb=short"
 
 # -------------------------------------------------------------------- coverage
 [tool.coverage.run]
-source = ["apps", "config", "core"]
+source = ["apps", "config", "core", "optimization"]
 branch = true
 omit = [
     "*/migrations/*",

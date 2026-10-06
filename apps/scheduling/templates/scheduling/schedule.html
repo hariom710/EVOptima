@@ -1,0 +1,323 @@
+{% extends 'prediction/base.html' %}
+
+{% block content %}
+<div class="container-fluid">
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0"><i class="bi bi-calendar-week"></i> Smart Charging Scheduler</h2>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        Two policies, one fleet, one site budget. The <strong>greedy</strong> column is
+                        the rule this site runs today &mdash; take the highest rate you can, right now,
+                        first come first served. The <strong>optimised</strong> column is the same
+                        request solved as a linear program over
+                        <strong>{{ horizon_hours }} hourly slots</strong> against the published
+                        time-of-use tariff.
+                    </p>
+                    <form method="get" class="row g-3 align-items-end">
+                        <div class="col-auto">
+                            <label class="form-label mb-1" for="capacity">Site capacity (kW)</label>
+                            <input class="form-control" type="number" id="capacity" name="capacity"
+                                   step="1" min="1" max="10000" value="{{ capacity }}">
+                        </div>
+                        <div class="col-auto">
+                            <label class="form-label mb-1" for="peak_weight">
+                                Peak weight &lambda; (cost per kW)
+                            </label>
+                            <input class="form-control" type="number" id="peak_weight" name="peak_weight"
+                                   step="0.5" min="0" max="1000" value="{{ peak_weight }}">
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="bi bi-arrow-repeat"></i> Re-solve
+                            </button>
+                        </div>
+                        <div class="col-auto">
+                            <span class="text-muted small">
+                                Default capacity {{ total_power }} kW &middot; &lambda;&nbsp;= charges
+                                &lambda;&nbsp;&times;&nbsp;peak for demand shaping; 0 minimises the bill alone.
+                            </span>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# The verdict first: what actually happened, before any table. #}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-{{ verdict.kind }} mb-2">
+                {% if verdict.kind == 'danger' %}
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <strong>The optimised plan could not meet every deadline at
+                    {{ capacity|floatformat:0 }} kW.</strong>
+                {% elif verdict.kind == 'warning' %}
+                <i class="bi bi-exclamation-circle-fill"></i>
+                <strong>The greedy rule misses deadlines the optimiser meets.</strong>
+                {% else %}
+                <i class="bi bi-check-circle-fill"></i>
+                <strong>{{ verdict.headline }}</strong>
+                {% endif %}
+                {% if verdict.reasons %}
+                <ul class="mb-0 mt-2">
+                    {% for reason in verdict.reasons %}<li>{{ reason }}</li>{% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="text-muted">Energy bill</h6>
+                    <p class="mb-1 fs-3">{{ summary.optimal_cost|floatformat:2 }}</p>
+                    <p class="mb-0 text-muted small">
+                        greedy {{ summary.greedy_cost|floatformat:2 }}
+                    </p>
+                    <span class="badge text-wrap {% if summary.saved >= 0 %}bg-success{% else %}bg-secondary{% endif %} mt-2">
+                        {% if summary.saved >= 0 %}
+                        saves {{ summary.saved|floatformat:2 }} ({{ summary.saved_pct|floatformat:1 }}%)
+                        {% else %}
+                        costs {{ summary.extra|floatformat:2 }} more to flatten the peak
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="text-muted">Peak site load</h6>
+                    <p class="mb-1 fs-3">{{ summary.optimal_peak|floatformat:1 }} kW</p>
+                    <p class="mb-0 text-muted small">greedy {{ summary.greedy_peak|floatformat:1 }} kW</p>
+                    <span class="badge text-wrap {% if summary.peak_delta > 0 %}bg-success{% else %}bg-secondary{% endif %} mt-2">
+                        {% if summary.peak_delta > 0 %}
+                        {{ summary.peak_delta|floatformat:1 }} kW shaved
+                        {% else %}
+                        same peak as greedy
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="text-muted">Energy at peak prices</h6>
+                    <p class="mb-1 fs-3">{{ summary.optimal_peak_kwh|floatformat:0 }} kWh</p>
+                    <p class="mb-0 text-muted small">
+                        greedy {{ summary.greedy_peak_kwh|floatformat:0 }} kWh
+                    </p>
+                    <span class="badge text-wrap {% if summary.peak_kwh_shifted > 0 %}bg-success{% elif summary.peak_kwh_shifted < 0 %}bg-secondary{% else %}bg-secondary{% endif %} mt-2">
+                        {% if summary.peak_kwh_shifted > 0 %}
+                        {{ summary.peak_kwh_shifted|floatformat:0 }} kWh shifted out of the peak band
+                        {% elif summary.peak_kwh_shifted < 0 %}
+                        {{ summary.peak_kwh_shifted|floatformat:0 }} kWh shifted into the peak band
+                        {% else %}
+                        same kWh bought in the peak band
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="text-muted">Energy delivered</h6>
+                    <p class="mb-1 fs-3">{{ summary.optimal_delivered|floatformat:0 }} kWh</p>
+                    <p class="mb-0 text-muted small">
+                        greedy {{ summary.greedy_delivered|floatformat:0 }} kWh
+                        &middot; {{ summary.total_kwh|floatformat:0 }} requested
+                    </p>
+                    <span class="badge text-wrap {% if summary.optimal_feasible %}bg-success{% else %}bg-danger{% endif %} mt-2">
+                        optimised {% if summary.optimal_feasible %}on time{% else %}late{% endif %}
+                    </span>
+                    <span class="badge text-wrap {% if summary.greedy_feasible %}bg-success{% else %}bg-danger{% endif %}">
+                        greedy {% if summary.greedy_feasible %}on time{% else %}late{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Per-session outcome</h4>
+                </div>
+                <div class="card-body table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Session</th>
+                                <th>Window (h)</th>
+                                <th>Port (kW)</th>
+                                <th>Required (kWh)</th>
+                                <th>Greedy (kWh)</th>
+                                <th>Optimised (kWh)</th>
+                                <th>Greedy shortfall</th>
+                                <th>Optimised shortfall</th>
+                                <th>Greedy at peak price</th>
+                                <th>Optimised at peak price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in sessions %}
+                            <tr>
+                                <td><strong>{{ row.session_id }}</strong></td>
+                                <td>{{ row.window }}</td>
+                                <td>{{ row.port_kw|floatformat:0 }}</td>
+                                <td>{{ row.required_kwh|floatformat:1 }}</td>
+                                <td>{{ row.greedy_kwh|floatformat:1 }}</td>
+                                <td>{{ row.optimal_kwh|floatformat:1 }}</td>
+                                <td>
+                                    {% if row.greedy_short %}
+                                    <span class="badge bg-danger">{{ row.greedy_short|floatformat:1 }} kWh</span>
+                                    {% else %}<span class="text-success">&mdash;</span>{% endif %}
+                                </td>
+                                <td>
+                                    {% if row.optimal_short %}
+                                    <span class="badge bg-danger">{{ row.optimal_short|floatformat:1 }} kWh</span>
+                                    {% else %}<span class="text-success">&mdash;</span>{% endif %}
+                                </td>
+                                <td>{{ row.greedy_peak_kwh|floatformat:1 }}</td>
+                                <td>{{ row.optimal_peak_kwh|floatformat:1 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Hour by hour</h4>
+                </div>
+                <div class="card-body table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Hour</th>
+                                <th>Tariff</th>
+                                <th style="min-width: 240px;">Greedy site load</th>
+                                <th style="min-width: 240px;">Optimised site load</th>
+                                <th>Greedy &minus; optimised (kW)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for hour in hours %}
+                            <tr>
+                                <td>
+                                    {{ hour.hour }}
+                                    {% if hour.is_peak %}<span class="badge bg-danger">peak</span>{% endif %}
+                                </td>
+                                <td>{{ hour.rate|floatformat:2 }}</td>
+                                <td>
+                                    <div class="progress" style="height: 18px;">
+                                        <div class="progress-bar {% if hour.is_peak %}bg-danger{% else %}bg-secondary{% endif %}"
+                                             style="width: {% widthratio hour.greedy_kw capacity 100 %}%"
+                                             title="{{ hour.greedy_kw }} kW">
+                                            {{ hour.greedy_kw|floatformat:1 }}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 18px;">
+                                        <div class="progress-bar bg-success"
+                                             style="width: {% widthratio hour.optimal_kw capacity 100 %}%"
+                                             title="{{ hour.optimal_kw }} kW">
+                                            {{ hour.optimal_kw|floatformat:1 }}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if hour.delta_kw > 0 %}
+                                    <span class="text-success">+{{ hour.delta_kw|floatformat:1 }}</span>
+                                    {% elif hour.delta_kw < 0 %}
+                                    <span class="text-danger">{{ hour.delta_kw|floatformat:1 }}</span>
+                                    {% else %}&mdash;{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Greedy &mdash; what is binding</h4>
+                </div>
+                <div class="card-body">
+                    {% if binding.greedy %}
+                    <ul class="mb-0">
+                        {% for reason in binding.greedy %}<li>{{ reason }}</li>{% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="mb-0 text-success">
+                        <i class="bi bi-check-circle"></i> Nothing is binding: every session fits.
+                    </p>
+                    {% endif %}
+                    <p class="text-muted small mt-3 mb-0">{{ notes.greedy }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Optimised &mdash; what is binding</h4>
+                </div>
+                <div class="card-body">
+                    {% if binding.optimal %}
+                    <ul class="mb-0">
+                        {% for reason in binding.optimal %}<li>{{ reason }}</li>{% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="mb-0 text-success">
+                        <i class="bi bi-check-circle"></i> Nothing is binding: every session fits.
+                    </p>
+                    {% endif %}
+                    <p class="text-muted small mt-3 mb-0">{{ notes.optimal }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <p class="text-muted small mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        The fleet is a fixed demonstration scenario: EVOptima records measurements,
+                        not bookings, so there is no arrival or departure data to read. Every figure
+                        above is computed live by
+                        <code>optimization.greedy_schedule</code> and
+                        <code>optimization.solve_schedule</code> over
+                        <code>apps.scheduling.fleet</code> at the capacity and
+                        &lambda; shown, and is reproducible from those inputs alone.
+                        Costs are in the tariff's currency units.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -85,6 +85,18 @@
 
 </td>
 </tr>
+<tr>
+<td colspan="2">
+
+### 📅 Smart Charging Scheduler
+- **Linear program (`scipy.optimize.linprog`)** over hourly slots — no new dependency, no new data
+- Minimises the time-of-use bill subject to **site capacity, per-port limits, arrival/departure windows and deadlines**
+- **Never misses a deadline silently**: an infeasible request names the binding constraint — the session's own window, or the site capacity — and reports the shortfall in kWh
+- **Greedy vs optimised side by side** at `/scheduling/`, both run over the same fleet: the greedy rule (the one the site runs today) misses 54 kWh on the demo fleet and still pays 3 % more
+- Optional **peak weight λ** prices site peak in kW, turning the LP into demand-charge shaping
+
+</td>
+</tr>
 </table>
 
 ---
@@ -258,10 +270,20 @@ EVOptima/
 │   ├── prediction/              ← inference view, OOD guard, provenance
 │   │   ├── forms.py             ← V, I, temp, SoC, duration, timestamp
 │   │   └── views.py
+│   ├── scheduling/              ← /scheduling/ page + demo fleet (no models)
+│   │   ├── fleet.py
+│   │   └── views.py
 │   └── visualization/           ← analytics charts
 │
 ├── core/
-│   └── model_registry.py        ← lazy, thread-safe artifact loader
+│   ├── model_registry.py        ← lazy, thread-safe artifact loader
+│   └── site.py                  ← TOTAL_POWER_KW, the one bus budget
+│
+├── optimization/                ← Smart Charging Scheduler (Django-free)
+│   ├── session.py               ← one vehicle's request, in hours
+│   ├── tariff.py                ← published time-of-use table
+│   ├── solver.py                ← the LP + named-binding report
+│   └── baseline.py              ← the site's current greedy rule
 │
 ├── ml/
 │   ├── pipeline/                ← config (feature contracts), data, evaluate,
@@ -280,7 +302,7 @@ EVOptima/
 │   ├── base.txt · dev.txt · prod.txt
 │
 ├── templates/ · static/         ← project-level templates and assets
-├── tests/                       ← 295 tests
+├── tests/                       ← 360 tests
 ├── docs/
 │   ├── ml-findings.md           ← the ML diagnosis
 │   └── migration-notes.md
@@ -363,7 +385,7 @@ http://127.0.0.1:8000/
 
 ```bash
 python -m ruff check .        # lint
-python -m pytest              # 295 tests
+python -m pytest              # 360 tests
 python -m pytest --cov        # with coverage
 python manage.py check        # Django system checks
 ```
@@ -388,6 +410,7 @@ python scripts/gate_phase3.py
 | `GET` | `/home/` | Status homepage + recent events |
 | `GET` | `/prediction/` | Three-port prediction form + model provenance |
 | `GET` | `/prediction/welcome/` | Prediction intro |
+| `GET` | `/scheduling/` | Greedy vs optimised charge plan · `?capacity=` · `?peak_weight=` |
 | `GET` | `/visualization/` | Analytics charts |
 | `GET` | `/monitoring/dashboard/` | Live WebSocket dashboard |
 | `GET` | `/accounts/login/` · `/register/` · `/logout/` | Authentication |
@@ -417,9 +440,11 @@ python scripts/gate_phase3.py
 | **accounts** | Login, registration, logout | Django auth |
 | **monitoring** | Dashboards, WebSocket consumer, thresholds, fault rules, simulator | Django Channels + services |
 | **prediction** | Inference, OOD guard, provenance card, DC-bus allocation | Registry + `ml.pipeline` |
+| **scheduling** | `/scheduling/` comparison page and demo fleet | Thin view over `optimization` |
 | **visualization** | Historical analytics and Chart.js charts | Django + DRF |
-| **core** | Lazy, thread-safe artifact loading with remembered failures | Singleton + lock |
+| **core** | Lazy, thread-safe artifact loading with remembered failures; shared site constants | Singleton + lock |
 | **ml/pipeline** | Feature contracts, training, honest evaluation, leakage audit | Shared by notebook and view |
+| **optimization** | Charge scheduling: LP solver, tariff, greedy baseline | Pure functions, no Django |
 
 ---
 

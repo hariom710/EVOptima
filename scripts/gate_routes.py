@@ -27,6 +27,7 @@ ROUTES = [
     "/home/",
     "/welcome/",
     "/prediction/",
+    "/scheduling/",
     "/visualization/",
     "/accounts/login/",
     "/admin/",

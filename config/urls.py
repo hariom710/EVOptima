@@ -9,6 +9,7 @@ Path             Source                                         Purpose
 ``/home/``       project A                                      status + recent events
 ``/accounts/``   project A                                      login / register / logout
 ``/prediction/`` project A                                      prediction forms
+``/scheduling/``  project A                                     smart charging scheduler
 ``/visualization/`` project A                                   charts + sim controls
 ``/api/monitoring/`` project A (canonical monitoring namespace)  status/thresholds/events
 ``/api/``        fault2 alias namespace                          short routes for dashboard
@@ -34,6 +35,7 @@ urlpatterns = [
     path("welcome/", welcome_view, name="welcome"),
     path("dashboard/", dashboard_view, name="dashboard"),
     path("prediction/", include("apps.prediction.urls")),
+    path("scheduling/", include("apps.scheduling.urls")),
     path("visualization/", include("apps.visualization.urls")),
     # monitoring — canonical namespace (apps.monitoring.urls has app_name)
     path("api/monitoring/", include("apps.monitoring.urls")),
